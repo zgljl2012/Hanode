@@ -1,13 +1,12 @@
 [package]
-name = "hanode"
+name = "p2p"
 version = "0.0.1"
-authors = ["zgljl2012 <liaojl@cpchain.io>"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 async-std = {version = "1", features = ["attributes"]}
-env_logger = "0.9.1"
+libp2p = "0.48.0"
 futures = "0.3.24"
-p2p = {version = "0.0.1", path="p2p"}
+env_logger = "0.9.1"
