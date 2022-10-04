@@ -10,3 +10,4 @@ async-std = {version = "1", features = ["attributes"]}
 libp2p = "0.48.0"
 futures = "0.3.24"
 env_logger = "0.9.1"
+async-trait = "0.1.57"

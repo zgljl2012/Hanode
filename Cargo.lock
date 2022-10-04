@@ -1932,6 +1932,7 @@ name = "p2p"
 version = "0.0.1"
 dependencies = [
  "async-std",
+ "async-trait",
  "env_logger",
  "futures",
  "libp2p",
