@@ -3,6 +3,7 @@ use std::error::Error;
 
 use clap::{arg, Command};
 mod startup;
+mod utils;
 
 fn cli() -> Command {
     Command::new("hanode")
@@ -22,8 +23,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     match matches.subcommand() {
         Some(("start", sub_matches)) => {
             let daemon = sub_matches.get_flag("daemon");
-            println!("start: {:?}", daemon);
-            startup::start(&startup::StartOptions{port: 3200, daemon: daemon}).await?;
+            startup::start(&startup::StartOptions{
+                port: 3200, 
+                daemon: daemon,
+                pid: "./hanode.pid".to_string(),
+            }).await?;
         },
         _ => println!("not implemented"),
     }

@@ -9,6 +9,8 @@ edition = "2021"
 [dependencies]
 async-std = {version = "1", features = ["attributes"]}
 clap = "4.0.9"
+daemonize = "0.4.1"
 env_logger = "0.9.1"
 futures = "0.3.24"
 p2p = {version = "0.0.1", path="p2p"}
+tokio = { version = "1.21.2", features = ["full"] }

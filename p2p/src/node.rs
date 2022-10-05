@@ -10,7 +10,7 @@ use libp2p::{
     mdns::{Mdns, MdnsConfig, MdnsEvent},
     swarm::SwarmEvent,
     identity,
-    Multiaddr, NetworkBehaviour, Swarm, PeerId,
+    NetworkBehaviour, Swarm, PeerId,
 };
 use std::error::Error;
 use crate::message::Message;
