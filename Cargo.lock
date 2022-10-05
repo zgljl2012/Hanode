@@ -423,6 +423,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap"
+version = "4.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30607dd93c420c6f1f80b544be522a0238a7db35e6a12968d28910983fee0df0"
+dependencies = [
+ "atty",
+ "bitflags",
+ "clap_lex",
+ "strsim",
+ "termcolor",
+]
+
+[[package]]
+name = "clap_lex"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d4198f73e42b4936b35b5bb248d81d2b595ecb170da0bac7655c54eedfa8da8"
+dependencies = [
+ "os_str_bytes",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "1.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -889,6 +911,7 @@ name = "hanode"
 version = "0.0.1"
 dependencies = [
  "async-std",
+ "clap",
  "env_logger",
  "futures",
  "p2p",
@@ -1928,6 +1951,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
+name = "os_str_bytes"
+version = "6.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ff7415e9ae3fff1225851df9e0d9e4e5479f947619774677a63572e55e80eff"
+
+[[package]]
 name = "p2p"
 version = "0.0.1"
 dependencies = [
@@ -2638,6 +2667,12 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "strsim"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 
 [[package]]
 name = "subtle"

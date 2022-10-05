@@ -1,44 +1,31 @@
-use p2p::node::{Sender, Receiver};
-use p2p::{node::NodeBehaviour, message::Message};
-use p2p::message;
+
 use std::error::Error;
-use async_std::{io};
-use futures::{
-    prelude::{stream::StreamExt, *},
-    select,
-};
-use futures::channel::mpsc;
+
+use clap::{arg, Command};
+mod startup;
+
+fn cli() -> Command {
+    Command::new("hanode")
+        .about("A server for manage node")
+        .subcommand_required(true)
+        .arg_required_else_help(true)
+        .subcommand(
+            Command::new("start")
+               .about("Start a node")
+               .arg(arg!(-d - -daemon "Running in daemon mode"))
+        )
+}
 
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let (mut sender, mut receiver) = mpsc::unbounded::<Message>();
-    async fn run<'a>(receiver: &mut Receiver<Message>) -> Result<(), Box<dyn Error>> {
-        let mut node = p2p::node::Node::new(receiver).await?;
-        match node.start().await {
-            Ok(_ok) => print!("Success"),
-            Err(err) => print!("Error: {}", err)
-        };
-        Ok(())
-    }
-    async fn input(sender: &mut Sender<Message>) -> Result<(), Box<dyn Error>>  {
-        // // Read full lines from stdin
-        let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
-        loop {
-            select! {
-                line = stdin.select_next_some() => 
-                    sender.send(message::Message::from(line.expect("Stdin not to close").to_string()))
-                    .await?,
-            }
-        }
-    }
-    let (a_, b_) = futures::join!(run(&mut receiver), input(&mut sender));
-    match a_ {
-        Ok(_) => println!("Success"),
-        Err(err) => println!("Error: {}", err)
-    }
-    match b_ {
-        Ok(_) => println!("Success"),
-        Err(err) => println!("Error: {}", err)
+    let matches = cli().get_matches();
+    match matches.subcommand() {
+        Some(("start", sub_matches)) => {
+            let daemon = sub_matches.get_flag("daemon");
+            println!("start: {:?}", daemon);
+            startup::start(&startup::StartOptions{port: 3200, daemon: daemon}).await?;
+        },
+        _ => println!("not implemented"),
     }
     Ok(())
 }

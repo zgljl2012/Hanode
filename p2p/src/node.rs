@@ -101,16 +101,24 @@ impl<'a> NodeBehaviour for Node<'a> {
         println!("Local peer id: {:?}", self.peer_id);
 
         // Reach out to another node if specified
-        if let Some(to_dial) = std::env::args().nth(1) {
-            let addr: Multiaddr = to_dial.parse()?;
-            match self.swarm.dial(addr) {
-                Ok(_) => {println!("Dialed {:?}", to_dial)}
-                Err(e) => { println!("Error connecting: {:?}", e) }
-            };
-        }
+        // if let Some(to_dial) = std::env::args().nth(1) {
+        //     println!("2");
+        //     let addr: Multiaddr = to_dial.parse()?;
+        //     match self.swarm.dial(addr) {
+        //         Ok(_) => {println!("Dialed {:?}", to_dial)}
+        //         Err(e) => { println!("Error connecting: {:?}", e) }
+        //     };
+        // }
 
         // Listen on all interfaces and whatever port the OS assigns
-        self.swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
+        match self.swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?) {
+            Ok(listener) => {
+                println!("Listening on {:?}", listener);
+            },
+            Err(e) => {
+                println!("Error listening: {:?}", e);
+            },
+        };
 
         // Kick it off
         loop {
