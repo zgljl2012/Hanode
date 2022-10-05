@@ -52,3 +52,18 @@ py <...>
 py net.addLink(s1, s2)
 
 ```
+
+## 测试环境
+
+```bash
+
+make mininet
+
+cd /root/x86_64-unknown-linux-musl/release
+
+mn
+
+# 在 h1 上启动
+h1 ./hanode
+
+```
