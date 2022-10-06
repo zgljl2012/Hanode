@@ -1,6 +1,7 @@
 use p2p::node::{Sender, Receiver};
 use p2p::{node::NodeBehaviour, message::Message};
 use p2p::message;
+use server;
 use std::io::Error;
 use std::fs::{File};
 use std::io::ErrorKind;
@@ -48,21 +49,21 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
             },
             Err(e) => eprintln!("Error, {}", e),
         }
-        // run().await
-        // Create the runtime
-        let rt = tokio::runtime::Runtime::new()?;
+    }
+    // Create the runtime
+    let rt = tokio::runtime::Runtime::new()?;
 
-        // Spawn the root task
-        rt.block_on(async {
+    // Spawn the root task
+    rt.block_on(async {
+        async fn start_node () {
             match run().await {
                 Ok(_) => (),
                 Err(e) => eprintln!("Error, {}", e),
             }
-        });
-        Ok(())
-    } else {
-        run().await
-    }
+        }
+        futures::join!(start_node())
+    });
+    Ok(())
 }
 
 pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
@@ -86,14 +87,13 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    let(a_, b_) = futures::join!(run(&mut receiver), input(&mut sender));
-    match a_ {
-        Ok(_) => println!("Success"),
-        Err(err) => println!("Error: {}", err)
-    }
-    match b_ {
-        Ok(_) => println!("Success"),
-        Err(err) => println!("Error: {}", err)
-    }
+    let _ = futures::join!(
+        run(&mut receiver), 
+        input(&mut sender), 
+        server::core::start_server(server::core::ServerOptions {
+            port: 8080, 
+            host: Some("localhost".to_string())
+        }
+    ));
     Ok(())
 }
