@@ -1,4 +1,4 @@
-use p2p::node::{Sender, Receiver};
+use p2p::node::{Sender, Receiver, NodeBehaviourOptions};
 use p2p::{node::NodeBehaviour, message::Message};
 use p2p::message;
 use server;
@@ -23,7 +23,9 @@ use crate::utils;
 pub struct StartOptions {
     pub port: u16,
     pub daemon: bool,
-    pub pid: String
+    pub pid: String,
+    pub host: String,
+    pub bootnode: Option<String>
 }
 
 pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
@@ -71,45 +73,43 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
 
     // Spawn the root task
     rt.block_on(async {
-        async fn start_node () {
-            match run().await {
-                Ok(_) => (),
-                Err(e) => eprintln!("Error, {}", e),
+        // Create sender and receiver for message processing
+        let (mut sender, mut receiver) = mpsc::unbounded::<Message>();
+        // Start node
+        async fn start_node (receiver: &mut Receiver<Message>, options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
+            // Create node
+            let mut node = p2p::node::Node::new(receiver, NodeBehaviourOptions{bootnode: options.bootnode.clone()}).await?;
+            // Start node
+            match node.start().await {
+                Ok(_ok) => print!("Success"),
+                Err(err) => print!("Error: {}", err)
+            };
+            Ok(())
+        }
+        // Input message
+        async fn input(sender: &mut Sender<Message>, options: &StartOptions) -> Result<(), Box<dyn std::error::Error>>  {
+            // If running in the background, return immediately
+            if options.daemon {
+                return Ok(());
+            }
+            // Read full lines from stdin
+            let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
+            loop {
+                select! {
+                    line = stdin.select_next_some() => 
+                        sender.send(message::Message::from(line.expect("Stdin not to close").to_string()))
+                        .await?,
+                }
             }
         }
-        futures::join!(start_node())
+        // Start server
+        async fn start_server(options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
+            server::core::start_server(server::core::ServerOptions {
+                port: 8080,
+                host: Some(options.host.to_string())
+            }).await
+        }
+        let _ = futures::join!(start_node(&mut receiver, &options), input(&mut sender, &options), start_server(&options));
     });
-    Ok(())
-}
-
-pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-    let (mut sender, mut receiver) = mpsc::unbounded::<Message>();
-    async fn run<'a>(receiver: &mut Receiver<Message>) -> Result<(), Box<dyn std::error::Error>> {
-        let mut node = p2p::node::Node::new(receiver).await?;
-        match node.start().await {
-            Ok(_ok) => print!("Success"),
-            Err(err) => print!("Error: {}", err)
-        };
-        Ok(())
-    }
-    async fn input(sender: &mut Sender<Message>) -> Result<(), Box<dyn std::error::Error>>  {
-        // Read full lines from stdin
-        let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
-        loop {
-            select! {
-                line = stdin.select_next_some() => 
-                    sender.send(message::Message::from(line.expect("Stdin not to close").to_string()))
-                    .await?,
-            }
-        }
-    }
-    let _ = futures::join!(
-        run(&mut receiver),
-        input(&mut sender),
-        server::core::start_server(server::core::ServerOptions {
-            port: 8080, 
-            host: Some("localhost".to_string())
-        }
-    ));
     Ok(())
 }

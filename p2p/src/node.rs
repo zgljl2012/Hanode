@@ -10,7 +10,7 @@ use libp2p::{
     mdns::{Mdns, MdnsConfig, MdnsEvent},
     swarm::SwarmEvent,
     identity,
-    NetworkBehaviour, Swarm, PeerId,
+    NetworkBehaviour, Swarm, PeerId, Multiaddr,
 };
 use std::error::Error;
 use crate::message::Message;
@@ -23,16 +23,22 @@ pub type Receiver<T> = mpsc::UnboundedReceiver<T>;
 pub struct Node<'a> {
     pub key: core::identity::Keypair,
     pub peer_id: PeerId,
+    bootnode: Option<String>,
     swarm: Swarm<MyBehaviour>,
     floodsub_topic: floodsub::Topic,
     message_receiver: &'a mut Receiver<Message>
+}
+
+#[derive(Debug, Clone)]
+pub struct NodeBehaviourOptions {
+    pub bootnode: Option<String>
 }
 
 // NodeBehaviour
 #[async_trait]
 pub trait NodeBehaviour {
     // Create a new node
-    async fn new(receiver: &mut Receiver<Message>) -> Result<Node, Box<dyn Error>>;
+    async fn new(receiver: &mut Receiver<Message>, opts: NodeBehaviourOptions) -> Result<Node, Box<dyn Error>>;
     // Start listening
     async fn start(&mut self) -> Result<(), Box<dyn Error>>;
 }
@@ -67,7 +73,7 @@ impl From<FloodsubEvent> for OutEvent {
 
 #[async_trait]
 impl<'a> NodeBehaviour for Node<'a> {
-    async fn new(receiver: &mut Receiver<Message>) -> Result<Node, Box<dyn Error>> {
+    async fn new(receiver: &mut Receiver<Message>, opts: NodeBehaviourOptions) -> Result<Node, Box<dyn Error>> {
         // Create a random PeerId
         let local_key = identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
@@ -93,6 +99,7 @@ impl<'a> NodeBehaviour for Node<'a> {
             peer_id: local_peer_id,
             floodsub_topic: floodsub_topic,
             message_receiver: receiver,
+            bootnode: opts.bootnode,
         })
     }
 
@@ -101,14 +108,17 @@ impl<'a> NodeBehaviour for Node<'a> {
         println!("Local peer id: {:?}", self.peer_id);
 
         // Reach out to another node if specified
-        // if let Some(to_dial) = std::env::args().nth(1) {
-        //     println!("2");
-        //     let addr: Multiaddr = to_dial.parse()?;
-        //     match self.swarm.dial(addr) {
-        //         Ok(_) => {println!("Dialed {:?}", to_dial)}
-        //         Err(e) => { println!("Error connecting: {:?}", e) }
-        //     };
-        // }
+        match self.bootnode {
+            Some(ref bootnode) => {
+                let to_dial = bootnode;
+                let addr: Multiaddr = to_dial.parse()?;
+                match self.swarm.dial(addr) {
+                    Ok(_) => {println!("Dialed {:?}", to_dial)}
+                    Err(e) => { println!("Error connecting: {:?}", e) }
+                };
+            },
+            None => {}, // skip this
+        }
 
         // Listen on all interfaces and whatever port the OS assigns
         match self.swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?) {
@@ -151,6 +161,7 @@ impl<'a> NodeBehaviour for Node<'a> {
                         MdnsEvent::Discovered(list)
                     )) => {
                         for (peer, _) in list {
+                            println!("Discovered {:?}", peer);
                             self.swarm
                                 .behaviour_mut()
                                 .floodsub

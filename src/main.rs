@@ -14,6 +14,7 @@ fn cli() -> Command {
             Command::new("start")
                .about("Start a node")
                .arg(arg!(-d - -daemon "Running in daemon mode"))
+               .arg(arg!(--bootnode <BOOTNODE> "Specify a boot node to connect").required(false))
         )
 }
 
@@ -23,10 +24,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
     match matches.subcommand() {
         Some(("start", sub_matches)) => {
             let daemon = sub_matches.get_flag("daemon");
+            let bootnode = sub_matches.get_one::<String>("bootnode");
             startup::start(&startup::StartOptions{
                 port: 3200, 
                 daemon: daemon,
                 pid: "./hanode.pid".to_string(),
+                host: "0.0.0.0".to_string(),
+                bootnode: match bootnode {
+                    Some(bootnode) => Some(bootnode.to_string()),
+                    None => None,
+                },
             }).await?;
         },
         _ => println!("not implemented"),
