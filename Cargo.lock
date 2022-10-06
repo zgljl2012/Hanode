@@ -1218,6 +1218,7 @@ dependencies = [
  "futures",
  "p2p",
  "server",
+ "signal-hook",
  "tokio",
 ]
 

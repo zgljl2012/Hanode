@@ -2,8 +2,11 @@ use p2p::node::{Sender, Receiver};
 use p2p::{node::NodeBehaviour, message::Message};
 use p2p::message;
 use server;
+use signal_hook::consts::SIGINT;
 use std::io::Error;
 use std::fs::{File};
+use std::{thread, process};
+use signal_hook::{iterator::Signals};
 use std::io::ErrorKind;
 use async_std::{io};
 use futures::{
@@ -13,6 +16,7 @@ use futures::{
 use futures::channel::mpsc;
 use daemonize::Daemonize;
 use tokio;
+use futures::executor::block_on;
 
 use crate::utils;
 
@@ -53,6 +57,18 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
     // Create the runtime
     let rt = tokio::runtime::Runtime::new()?;
 
+    // Signals handlers
+    let mut signals = Signals::new(&[SIGINT])?;
+    thread::spawn(move || block_on(async {
+        for sig in signals.forever() {
+            // Exit program
+            if sig == SIGINT {
+                process::exit(1);
+            }
+            println!("Received signal {:?}", sig);
+        }
+    }));
+
     // Spawn the root task
     rt.block_on(async {
         async fn start_node () {
@@ -88,8 +104,8 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     let _ = futures::join!(
-        run(&mut receiver), 
-        input(&mut sender), 
+        run(&mut receiver),
+        input(&mut sender),
         server::core::start_server(server::core::ServerOptions {
             port: 8080, 
             host: Some("localhost".to_string())
