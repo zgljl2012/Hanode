@@ -2,6 +2,7 @@ use std::{error::Error, sync::{Mutex, RwLock, Arc}};
 use actix_web::{get, web::{self, Data}, App, HttpServer, Responder};
 use p2p::message::Message;
 use p2p::node::Sender;
+use futures::SinkExt;
 
 struct AppState {
     counter: Mutex<i32>,
@@ -12,6 +13,7 @@ struct AppState {
 async fn greet(state: Data<AppState>, name: web::Path<String>) -> impl Responder {
     let mut counter = state.counter.lock().unwrap(); // <- get counter's MutexGuard
     *counter += 1; // <- access counter inside MutexGuard
+    let _ = (*state.proxy_sender.write().unwrap()).send(Message::from(name.to_string())).await;
     format!("Hello {name} {counter}!")
 }
 

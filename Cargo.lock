@@ -2942,7 +2942,10 @@ name = "server"
 version = "0.0.1"
 dependencies = [
  "actix-web",
+ "async-std",
+ "futures",
  "p2p",
+ "tokio",
 ]
 
 [[package]]
