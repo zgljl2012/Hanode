@@ -5,6 +5,7 @@ use p2p::message;
 use signal_hook::consts::SIGINT;
 use std::io::Error;
 use std::fs::{File};
+use std::sync::{Arc, RwLock};
 use std::{thread, process};
 use signal_hook::{iterator::Signals};
 use std::io::ErrorKind;
@@ -74,25 +75,22 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
     // Spawn the root task
     rt.block_on(async {
         // Create sender and receiver for message processing
-        let (mut sender, mut receiver) = mpsc::unbounded::<Message>();
-        // Create a proxy betweeen p2p node and server
-        let (_proxy_sender, _proxy_receiver) = mpsc::unbounded::<Message>();
+        let (sender, mut receiver) = mpsc::unbounded::<Message>();
         // Start node
         async fn start_node (receiver: &mut Receiver<Message>, options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
             // Create node
             let mut node = p2p::node::Node::new(receiver, NodeBehaviourOptions{bootnode: options.bootnode.clone()}).await?;
             // Start node
-            match node.start().await {
-                Ok(_ok) => print!("Success"),
-                Err(err) => print!("Error: {}", err)
-            };
+            futures::join!(async {
+                match node.start().await {
+                    Ok(_ok) => print!("Success"),
+                    Err(err) => print!("Error: {}", err)
+                };
+            });
             Ok(())
         }
         // Input message
-        async fn input(sender: &mut Sender<Message>, options: &StartOptions) -> Result<(), Box<dyn std::error::Error>>  {
-            // Passing message from proxy_receiver to sender
-            // TODO: implement
-            
+        async fn input(sender: Arc<RwLock<Sender<Message>>>, options: &StartOptions) -> Result<(), Box<dyn std::error::Error>>  {
             // If running in the background, return immediately
             if options.daemon {
                 return Ok(());
@@ -101,20 +99,22 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
             let mut stdin = io::BufReader::new(io::stdin()).lines().fuse();
             loop {
                 select! {
-                    line = stdin.select_next_some() => 
-                        sender.send(message::Message::from(line.expect("Stdin not to close").to_string()))
-                        .await?,
+                    line = stdin.select_next_some() => {
+                        (*sender.write().unwrap()).send(message::Message::from(line.expect("Stdin not to close").to_string()))
+                        .await?
+                    },
                 }
             }
         }
         // Start server
-        async fn start_server(options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
-            server::core::start_server(server::core::ServerOptions {
-                port: 8080,
+        async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
+            server::core::start_server(proxy_sender, server::core::ServerOptions {
+                port: options.port,
                 host: Some(options.host.to_string())
             }).await
         }
-        let _ = futures::join!(start_node(&mut receiver, options), input(&mut sender, options), start_server(options));
+        let ps = Arc::new(RwLock::new(sender));
+        let _ = futures::join!(start_node(&mut receiver, options), input(Arc::clone(&ps), options), start_server(Arc::clone(&ps), options));
     });
     Ok(())
 }

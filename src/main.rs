@@ -26,7 +26,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let daemon = sub_matches.get_flag("daemon");
             let bootnode = sub_matches.get_one::<String>("bootnode");
             startup::start(&startup::StartOptions{
-                port: 3200, 
+                port: 8080,
                 daemon,
                 pid: "./hanode.pid".to_string(),
                 host: "0.0.0.0".to_string(),
