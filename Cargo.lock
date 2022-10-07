@@ -1216,6 +1216,7 @@ dependencies = [
  "daemonize",
  "env_logger",
  "futures",
+ "log",
  "p2p",
  "server",
  "signal-hook",
@@ -2347,6 +2348,7 @@ dependencies = [
  "env_logger",
  "futures",
  "libp2p",
+ "log",
 ]
 
 [[package]]

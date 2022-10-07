@@ -13,3 +13,9 @@ mininet-env:
              -v /lib/modules:/lib/modules \
 			 -v ${ROOT_DIR}/target:/root \
              iwaseyusuke/mininet:ubuntu-20.04 -- mn
+
+lint:
+	@cargo clippy
+
+lint-fix:
+	@cargo clippy --fix

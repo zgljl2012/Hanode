@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use async_std::{task};
+use log::{warn, info};
 use futures::{
     prelude::{stream::StreamExt},
     select,
@@ -13,7 +14,7 @@ use libp2p::{
     NetworkBehaviour, Swarm, PeerId, Multiaddr,
 };
 use std::error::Error;
-use crate::message::Message;
+use crate::message::{Message, MessageType};
 use futures::channel::mpsc;
 
 pub type Sender<T> = mpsc::UnboundedSender<T>;
@@ -132,13 +133,22 @@ impl<'a> NodeBehaviour for Node<'a> {
 
         // Kick it off
         loop {
+            let mut stop_flag = false;
             select! {
                 msg = self.message_receiver.next() => match msg {
                     Some(msg) => {
-                        println!("You input message: {:?}, send to everyone", msg.message);
-                        self.swarm.behaviour_mut()
-                            .floodsub
-                            .publish(self.floodsub_topic.clone(), msg.message.clone().as_bytes());
+                        match msg.type_ {
+                            MessageType::TEXT => {
+                                println!("You input message: {:?}, send to everyone", msg.message);
+                                self.swarm.behaviour_mut()
+                                    .floodsub
+                                    .publish(self.floodsub_topic.clone(), msg.message.clone().as_bytes());
+                            },
+                            MessageType::STOP => {
+                                warn!("Stopping p2p node...");
+                                stop_flag = true;
+                            }
+                        }
                     },
                     None => {
                         println!("Error input: None");
@@ -183,6 +193,11 @@ impl<'a> NodeBehaviour for Node<'a> {
                     _ => {}
                 }
             }
+            if stop_flag {
+                break;
+            }
         }
+        info!("Stopped");
+        Ok(())
     }
 }

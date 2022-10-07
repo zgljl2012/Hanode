@@ -16,3 +16,4 @@ p2p = {version = "0.0.1", path="p2p"}
 tokio = { version = "1.21.2", features = ["full"] }
 server = {version = "0.0.1", path="server"}
 signal-hook = {version = "0.3.14"}
+log = {version = "0.4.17"}

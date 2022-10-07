@@ -75,6 +75,8 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
     rt.block_on(async {
         // Create sender and receiver for message processing
         let (mut sender, mut receiver) = mpsc::unbounded::<Message>();
+        // Create a proxy betweeen p2p node and server
+        let (mut proxy_sender, mut proxy_receiver) = mpsc::unbounded::<Message>();
         // Start node
         async fn start_node (receiver: &mut Receiver<Message>, options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
             // Create node
@@ -88,6 +90,9 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
         }
         // Input message
         async fn input(sender: &mut Sender<Message>, options: &StartOptions) -> Result<(), Box<dyn std::error::Error>>  {
+            // Passing message from proxy_receiver to sender
+            // TODO: implement
+            
             // If running in the background, return immediately
             if options.daemon {
                 return Ok(());

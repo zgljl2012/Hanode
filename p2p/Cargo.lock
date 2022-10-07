@@ -1926,6 +1926,7 @@ dependencies = [
  "env_logger",
  "futures",
  "libp2p",
+ "log",
 ]
 
 [[package]]
