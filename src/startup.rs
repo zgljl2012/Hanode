@@ -1,7 +1,7 @@
 use p2p::node::{Sender, Receiver, NodeBehaviourOptions};
 use p2p::{node::NodeBehaviour, message::Message};
 use p2p::message;
-use server;
+
 use signal_hook::consts::SIGINT;
 use std::io::Error;
 use std::fs::{File};
@@ -15,7 +15,7 @@ use futures::{
 };
 use futures::channel::mpsc;
 use daemonize::Daemonize;
-use tokio;
+
 use futures::executor::block_on;
 
 use crate::utils;
@@ -76,7 +76,7 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
         // Create sender and receiver for message processing
         let (mut sender, mut receiver) = mpsc::unbounded::<Message>();
         // Create a proxy betweeen p2p node and server
-        let (mut proxy_sender, mut proxy_receiver) = mpsc::unbounded::<Message>();
+        let (_proxy_sender, _proxy_receiver) = mpsc::unbounded::<Message>();
         // Start node
         async fn start_node (receiver: &mut Receiver<Message>, options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
             // Create node
@@ -114,7 +114,7 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
                 host: Some(options.host.to_string())
             }).await
         }
-        let _ = futures::join!(start_node(&mut receiver, &options), input(&mut sender, &options), start_server(&options));
+        let _ = futures::join!(start_node(&mut receiver, options), input(&mut sender, options), start_server(options));
     });
     Ok(())
 }

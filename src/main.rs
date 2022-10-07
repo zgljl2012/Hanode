@@ -27,13 +27,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let bootnode = sub_matches.get_one::<String>("bootnode");
             startup::start(&startup::StartOptions{
                 port: 3200, 
-                daemon: daemon,
+                daemon,
                 pid: "./hanode.pid".to_string(),
                 host: "0.0.0.0".to_string(),
-                bootnode: match bootnode {
-                    Some(bootnode) => Some(bootnode.to_string()),
-                    None => None,
-                },
+                bootnode: bootnode.map(|bootnode| bootnode.to_string()),
             }).await?;
         },
         _ => println!("not implemented"),
