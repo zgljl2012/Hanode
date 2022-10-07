@@ -38,8 +38,6 @@ pub struct NodeBehaviourOptions {
 // NodeBehaviour
 #[async_trait]
 pub trait NodeBehaviour {
-    // Create a new node
-    async fn new(receiver: &mut Receiver<Message>, opts: NodeBehaviourOptions) -> Result<Node, Box<dyn Error>>;
     // Start listening
     async fn start(&mut self) -> Result<(), Box<dyn Error>>;
 }
@@ -72,9 +70,8 @@ impl From<FloodsubEvent> for OutEvent {
     }
 }
 
-#[async_trait]
-impl<'a> NodeBehaviour for Node<'a> {
-    async fn new(receiver: &mut Receiver<Message>, opts: NodeBehaviourOptions) -> Result<Node, Box<dyn Error>> {
+impl<'a> Node<'a> {
+    pub async fn new(receiver: &mut Receiver<Message>, opts: NodeBehaviourOptions) -> Result<Node, Box<dyn Error>> {
         // Create a random PeerId
         let local_key = identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
@@ -95,30 +92,30 @@ impl<'a> NodeBehaviour for Node<'a> {
             Swarm::new(transport, behaviour, local_peer_id)
         };
         Ok(Node {
-            swarm: swarm,
+            swarm,
             key: local_key,
             peer_id: local_peer_id,
-            floodsub_topic: floodsub_topic,
+            floodsub_topic,
             message_receiver: receiver,
             bootnode: opts.bootnode,
         })
     }
+}
 
+#[async_trait]
+impl<'a> NodeBehaviour for Node<'a> {
     async fn start(&mut self) -> Result<(), Box<dyn Error>> {
         env_logger::init();
         println!("Local peer id: {:?}", self.peer_id);
 
         // Reach out to another node if specified
-        match self.bootnode {
-            Some(ref bootnode) => {
-                let to_dial = bootnode;
-                let addr: Multiaddr = to_dial.parse()?;
-                match self.swarm.dial(addr) {
-                    Ok(_) => {println!("Dialed {:?}", to_dial)}
-                    Err(e) => { println!("Error connecting: {:?}", e) }
-                };
-            },
-            None => {}, // skip this
+        if let Some(ref bootnode) = self.bootnode {
+            let to_dial = bootnode;
+            let addr: Multiaddr = to_dial.parse()?;
+            match self.swarm.dial(addr) {
+                Ok(_) => {println!("Dialed {:?}", to_dial)}
+                Err(e) => { println!("Error connecting: {:?}", e) }
+            };
         }
 
         // Listen on all interfaces and whatever port the OS assigns
