@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use async_std::{task};
-use log::{warn, info};
+use log::{warn, info, error};
 use futures::{
     prelude::{stream::StreamExt},
     select,
@@ -13,8 +13,8 @@ use libp2p::{
     identity,
     NetworkBehaviour, Swarm, PeerId, Multiaddr,
 };
-use std::error::Error;
-use crate::message::{Message, MessageType};
+use std::{error::Error};
+use crate::{message::{Message, MessageType}, lifecycle::NodeLifecycleHooks};
 use futures::channel::mpsc;
 
 pub type Sender<T> = mpsc::UnboundedSender<T>;
@@ -31,8 +31,9 @@ pub struct Node<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct NodeBehaviourOptions {
-    pub bootnode: Option<String>
+pub struct NodeBehaviourOptions<L> where L: NodeLifecycleHooks{
+    pub bootnode: Option<String>,
+    pub lifecycle_hooks: L
 }
 
 // NodeBehaviour
@@ -71,7 +72,7 @@ impl From<FloodsubEvent> for OutEvent {
 }
 
 impl<'a> Node<'a> {
-    pub async fn new(receiver: &mut Receiver<Message>, opts: NodeBehaviourOptions) -> Result<Node, Box<dyn Error>> {
+    pub async fn new<T>(receiver: &mut Receiver<Message>, opts: NodeBehaviourOptions<T>) -> Result<Node, Box<dyn Error>> where T: NodeLifecycleHooks{
         // Create a random PeerId
         let local_key = identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
@@ -97,7 +98,7 @@ impl<'a> Node<'a> {
             peer_id: local_peer_id,
             floodsub_topic,
             message_receiver: receiver,
-            bootnode: opts.bootnode,
+            bootnode: opts.bootnode
         })
     }
 }
@@ -105,26 +106,25 @@ impl<'a> Node<'a> {
 #[async_trait]
 impl<'a> NodeBehaviour for Node<'a> {
     async fn start(&mut self) -> Result<(), Box<dyn Error>> {
-        env_logger::init();
-        println!("Local peer id: {:?}", self.peer_id);
+        info!("Local peer id: {:?}", self.peer_id);
 
         // Reach out to another node if specified
         if let Some(ref bootnode) = self.bootnode {
             let to_dial = bootnode;
             let addr: Multiaddr = to_dial.parse()?;
             match self.swarm.dial(addr) {
-                Ok(_) => {println!("Dialed {:?}", to_dial)}
-                Err(e) => { println!("Error connecting: {:?}", e) }
+                Ok(_) => {info!("Dialed {:?}", to_dial)}
+                Err(e) => { error!("Error connecting: {:?}", e) }
             };
         }
 
         // Listen on all interfaces and whatever port the OS assigns
         match self.swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?) {
             Ok(listener) => {
-                println!("Listening on {:?}", listener);
+                info!("Listening on {:?}", listener);
             },
             Err(e) => {
-                println!("Error listening: {:?}", e);
+                error!("Error listening: {:?}", e);
             },
         };
 
@@ -134,9 +134,9 @@ impl<'a> NodeBehaviour for Node<'a> {
             select! {
                 msg = self.message_receiver.next() => match msg {
                     Some(msg) => {
+                        info!("You input message: {:?}, send to everyone", msg.message);
                         match msg.type_ {
                             MessageType::TEXT => {
-                                println!("You input message: {:?}, send to everyone", msg.message);
                                 self.swarm.behaviour_mut()
                                     .floodsub
                                     .publish(self.floodsub_topic.clone(), msg.message.clone().as_bytes());
@@ -148,17 +148,17 @@ impl<'a> NodeBehaviour for Node<'a> {
                         }
                     },
                     None => {
-                        println!("Error input: None");
+                        error!("Error input: None");
                     }
                 },
                 event = self.swarm.select_next_some() => match event {
                     SwarmEvent::NewListenAddr { address, .. } => {
-                        println!("Listening on {:?}", address);
+                        info!("Listening on {:?}", address);
                     }
                     SwarmEvent::Behaviour(OutEvent::Floodsub(
                         FloodsubEvent::Message(message)
                     )) => {
-                        println!(
+                        info!(
                             "Received: '{:?}' from {:?}",
                             String::from_utf8_lossy(&message.data),
                             message.source
@@ -168,7 +168,7 @@ impl<'a> NodeBehaviour for Node<'a> {
                         MdnsEvent::Discovered(list)
                     )) => {
                         for (peer, _) in list {
-                            println!("Discovered {:?}", peer);
+                            info!("Discovered {:?}", peer);
                             self.swarm
                                 .behaviour_mut()
                                 .floodsub

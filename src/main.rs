@@ -2,6 +2,8 @@
 use std::error::Error;
 
 use clap::{arg, Command};
+use env_logger::{Builder, Target};
+use log::info;
 mod startup;
 mod utils;
 
@@ -20,6 +22,11 @@ fn cli() -> Command {
 
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    Builder::new()
+        .target(Target::Stdout)
+        .filter_level(log::LevelFilter::Info)
+        .init();
+    info!("Starting environment logger");
     let matches = cli().get_matches();
     match matches.subcommand() {
         Some(("start", sub_matches)) => {

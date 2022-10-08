@@ -1,3 +1,5 @@
+use log::info;
+use p2p::lifecycle::NodeLifecycleHooks;
 use p2p::node::{Sender, Receiver, NodeBehaviourOptions};
 use p2p::{node::NodeBehaviour, message::Message};
 use p2p::message;
@@ -27,6 +29,22 @@ pub struct StartOptions {
     pub pid: String,
     pub host: String,
     pub bootnode: Option<String>
+}
+
+struct NodeLifecycleGlobal {
+}
+
+impl NodeLifecycleGlobal {
+    pub fn new() -> Self {
+        NodeLifecycleGlobal {
+        }
+    }
+}
+
+impl NodeLifecycleHooks for NodeLifecycleGlobal {
+    fn on_stopped(&self) {
+        info!("NodeLifecycleHooks on_stopped()");
+    }
 }
 
 pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
@@ -78,8 +96,14 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
         let (sender, mut receiver) = mpsc::unbounded::<Message>();
         // Start node
         async fn start_node (receiver: &mut Receiver<Message>, options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
+            // Node lifecycle hooks
+            let lifecycle = NodeLifecycleGlobal::new();
+
             // Create node
-            let mut node = p2p::node::Node::new(receiver, NodeBehaviourOptions{bootnode: options.bootnode.clone()}).await?;
+            let mut node = p2p::node::Node::new(receiver, NodeBehaviourOptions{
+                bootnode: options.bootnode.clone(),
+                lifecycle_hooks: lifecycle,
+            }).await?;
             // Start node
             futures::join!(async {
                 match node.start().await {

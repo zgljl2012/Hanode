@@ -17,6 +17,19 @@ async fn greet(state: Data<AppState>, name: web::Path<String>) -> impl Responder
     format!("Hello {name} {counter}!")
 }
 
+#[get("/stop")]
+async fn stop_p2p_node(state: Data<AppState>) -> impl Responder {
+    match (*state.proxy_sender.write().unwrap()).send(Message::stop_message()).await {
+        Ok(_) => {
+            println!("Stopped p2p node");
+        },
+        Err(err) => {
+            println!("Failed to stop p2p node: {:?}", err);
+        }
+    }
+    format!("stop")
+}
+
 #[derive(Debug, Clone)]
 pub struct ServerOptions {
     pub host: Option<String>,
@@ -37,6 +50,7 @@ pub async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, opts: Serv
         App::new()
             .app_data(state.clone())
             .service(greet)
+            .service(stop_p2p_node)
     })
     .bind((host, port))?
     .run()
