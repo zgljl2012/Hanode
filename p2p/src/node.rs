@@ -27,13 +27,13 @@ pub struct Node<'a> {
     bootnode: Option<String>,
     swarm: Swarm<MyBehaviour>,
     floodsub_topic: floodsub::Topic,
-    message_receiver: &'a mut Receiver<Message>
+    message_receiver: &'a mut Receiver<Message>,
+    hooks: Box<dyn NodeLifecycleHooks + Send + Sync>
 }
 
 #[derive(Debug, Clone)]
-pub struct NodeBehaviourOptions<L> where L: NodeLifecycleHooks{
-    pub bootnode: Option<String>,
-    pub lifecycle_hooks: L
+pub struct NodeBehaviourOptions {
+    pub bootnode: Option<String>
 }
 
 // NodeBehaviour
@@ -72,7 +72,7 @@ impl From<FloodsubEvent> for OutEvent {
 }
 
 impl<'a> Node<'a> {
-    pub async fn new<T>(receiver: &mut Receiver<Message>, opts: NodeBehaviourOptions<T>) -> Result<Node, Box<dyn Error>> where T: NodeLifecycleHooks{
+    pub async fn new(receiver: &'a mut Receiver<Message>, hooks: Box<dyn NodeLifecycleHooks + Send + Sync>, opts: NodeBehaviourOptions) -> Result<Node, Box<dyn Error>> {
         // Create a random PeerId
         let local_key = identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
@@ -98,7 +98,8 @@ impl<'a> Node<'a> {
             peer_id: local_peer_id,
             floodsub_topic,
             message_receiver: receiver,
-            bootnode: opts.bootnode
+            bootnode: opts.bootnode,
+            hooks
         })
     }
 }
@@ -195,6 +196,7 @@ impl<'a> NodeBehaviour for Node<'a> {
             }
         }
         info!("Stopped");
+        self.hooks.on_stopped();
         Ok(())
     }
 }

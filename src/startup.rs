@@ -1,4 +1,4 @@
-use log::info;
+use log::{info, debug, warn, error};
 use p2p::lifecycle::NodeLifecycleHooks;
 use p2p::node::{Sender, Receiver, NodeBehaviourOptions};
 use p2p::{node::NodeBehaviour, message::Message};
@@ -31,6 +31,7 @@ pub struct StartOptions {
     pub bootnode: Option<String>
 }
 
+#[derive(Debug, Clone)]
 struct NodeLifecycleGlobal {
 }
 
@@ -43,7 +44,9 @@ impl NodeLifecycleGlobal {
 
 impl NodeLifecycleHooks for NodeLifecycleGlobal {
     fn on_stopped(&self) {
-        info!("NodeLifecycleHooks on_stopped()");
+        debug!("NodeLifecycleHooks on_stopped()");
+        // Shutdown when the node is stopped
+        process::exit(0);
     }
 }
 
@@ -70,7 +73,7 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
 
         match daemonize.start() {
             Ok(_) => {
-                println!("Success, daemonized")
+                info!("Success, daemonized")
             },
             Err(e) => eprintln!("Error, {}", e),
         }
@@ -86,7 +89,7 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
             if sig == SIGINT {
                 process::exit(1);
             }
-            println!("Received signal {:?}", sig);
+            warn!("Received signal {:?}", sig);
         }
     }));
 
@@ -97,18 +100,17 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
         // Start node
         async fn start_node (receiver: &mut Receiver<Message>, options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
             // Node lifecycle hooks
-            let lifecycle = NodeLifecycleGlobal::new();
+            let lifecycle = Box::new(NodeLifecycleGlobal::new());
 
             // Create node
-            let mut node = p2p::node::Node::new(receiver, NodeBehaviourOptions{
-                bootnode: options.bootnode.clone(),
-                lifecycle_hooks: lifecycle,
+            let mut node = p2p::node::Node::new(receiver, lifecycle, NodeBehaviourOptions{
+                bootnode: options.bootnode.clone()
             }).await?;
             // Start node
             futures::join!(async {
                 match node.start().await {
-                    Ok(_ok) => print!("Success"),
-                    Err(err) => print!("Error: {}", err)
+                    Ok(_ok) => info!("Success"),
+                    Err(err) => error!("Error: {}", err)
                 };
             });
             Ok(())
@@ -139,6 +141,22 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
         }
         let ps = Arc::new(RwLock::new(sender));
         let _ = futures::join!(start_node(&mut receiver, options), input(Arc::clone(&ps), options), start_server(Arc::clone(&ps), options));
+    });
+    Ok(())
+}
+
+
+pub struct StopOptions{
+    pub host: String,
+    pub port: u16,
+}
+
+pub async fn stop(opts: StopOptions) -> Result<(), Box<dyn std::error::Error>>  {
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on( async {
+        let request_url = format!("http://{}:{}/stop", opts.host, opts.port);
+        debug!("Send stop command to the node: {}", request_url);
+        let _ = reqwest::get(&request_url).await;
     });
     Ok(())
 }
