@@ -1,12 +1,14 @@
 use std::{error::Error, sync::{Mutex, RwLock, Arc}};
 use actix_web::{get, web::{self, Data}, App, HttpServer, Responder};
-use p2p::{message::Message};
+use p2p::{message::Message, state::NodeState};
 use p2p::node::Sender;
 use futures::SinkExt;
 
 struct AppState {
     counter: Mutex<i32>,
     proxy_sender: Arc<RwLock<Sender<Message>>>,
+    state: Arc<RwLock<NodeState>>
+    // node: Arc<RwLock<p2p::node::Node>>
 }
 
 #[get("/hello/{name}")]
@@ -32,7 +34,9 @@ async fn stop_p2p_node(state: Data<AppState>) -> impl Responder {
 
 #[get("/peers")]
 async fn peers(state: Data<AppState>) -> impl Responder {
-    let _ = (*state.proxy_sender.write().unwrap()).send(Message::list_peers_message()).await;
+    // let _ = (*state.proxy_sender.write().unwrap()).send(Message::list_peers_message()).await;
+    let peers = state.state.read().unwrap().peers.clone();
+    println!("{:?}", peers);
     format!("peers")
 }
 
@@ -42,7 +46,7 @@ pub struct ServerOptions {
     pub port: u16
 }
 
-pub async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, opts: ServerOptions) -> Result<(), Box<dyn Error>> {
+pub async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, state: Arc<RwLock<NodeState>>, opts: ServerOptions) -> Result<(), Box<dyn Error>> {
     let host = match opts.host {
         Some(host) => host,
         None => "127.0.0.1".to_string(),
@@ -51,6 +55,8 @@ pub async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, opts: Serv
     let state = Data::new(AppState {
         counter: Mutex::new(0),
         proxy_sender,
+        state
+        // node
     });
     HttpServer::new(move || {
         App::new()

@@ -21,13 +21,13 @@ pub type Sender<T> = mpsc::UnboundedSender<T>;
 pub type Receiver<T> = mpsc::UnboundedReceiver<T>;
 
 // Node
-pub struct Node<'a> {
+pub struct Node {
     pub key: core::identity::Keypair,
     pub peer_id: PeerId,
     bootnode: Option<String>,
     swarm: Swarm<MyBehaviour>,
     floodsub_topic: floodsub::Topic,
-    message_receiver: &'a mut Receiver<Message>,
+    message_receiver:Box<Receiver<Message>>,
     hooks: Box<dyn NodeLifecycleHooks + Send + Sync>,
     peers: HashMap<PeerId, Peer>
 }
@@ -73,8 +73,8 @@ impl From<FloodsubEvent> for OutEvent {
     }
 }
 
-impl<'a> Node<'a> {
-    pub async fn new(receiver: &'a mut Receiver<Message>, hooks: Box<dyn NodeLifecycleHooks + Send + Sync>, opts: NodeBehaviourOptions) -> Result<Node, Box<dyn Error>> {
+impl Node {
+    pub async fn new(receiver: Box<Receiver<Message>>, hooks: Box<dyn NodeLifecycleHooks + Send + Sync>, opts: NodeBehaviourOptions) -> Result<Node, Box<dyn Error>> {
         // Create a random PeerId
         let local_key = identity::Keypair::generate_ed25519();
         let local_peer_id = PeerId::from(local_key.public());
@@ -108,7 +108,7 @@ impl<'a> Node<'a> {
 }
 
 #[async_trait]
-impl<'a> NodeBehaviour for Node<'a> {
+impl NodeBehaviour for Node {
     async fn start(&mut self) -> Result<(), Box<dyn Error>> {
         info!("Local peer id: {:?}", self.peer_id);
 
@@ -176,6 +176,7 @@ impl<'a> NodeBehaviour for Node<'a> {
                         MdnsEvent::Discovered(list)
                     )) => {
                         for (peer, addr) in list {
+                            self.hooks.on_peer_connection(peer, addr.clone());
                             if !self.peers.contains_key(&peer) {
                                 self.peers.insert(peer, Peer {
                                     id: peer,

@@ -1,6 +1,7 @@
 use log::{info, debug, warn, error};
-use p2p::lifecycle::NodeLifecycleHooks;
+use p2p::lifecycle::{NodeLifecycle};
 use p2p::node::{Sender, NodeBehaviourOptions};
+use p2p::state::NodeState;
 use p2p::{node::NodeBehaviour, message::Message};
 use p2p::message;
 
@@ -29,25 +30,6 @@ pub struct StartOptions {
     pub pid: String,
     pub host: String,
     pub bootnode: Option<String>
-}
-
-#[derive(Debug, Clone)]
-struct NodeLifecycleGlobal {
-}
-
-impl NodeLifecycleGlobal {
-    pub fn new() -> Self {
-        NodeLifecycleGlobal {
-        }
-    }
-}
-
-impl NodeLifecycleHooks for NodeLifecycleGlobal {
-    fn on_stopped(&self) {
-        debug!("NodeLifecycleHooks on_stopped()");
-        // Shutdown when the node is stopped
-        process::exit(0);
-    }
 }
 
 pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
@@ -96,11 +78,13 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
     // Spawn the root task
     rt.block_on(async {
         // Create sender and receiver for message processing
-        let (sender, mut receiver) = mpsc::unbounded::<Message>();
+        let (sender, receiver) = mpsc::unbounded::<Message>();
+        // Create node state
+        let state = Arc::new(RwLock::new(NodeState::new()));
         // Node lifecycle hooks
-        let lifecycle = Box::new(NodeLifecycleGlobal::new());
+        let lifecycle = NodeLifecycle::new(state.clone());
         // Create the node
-        let r = p2p::node::Node::new(&mut receiver, lifecycle, NodeBehaviourOptions{
+        let r = p2p::node::Node::new(Box::new(receiver), lifecycle, NodeBehaviourOptions{
             bootnode: options.bootnode.clone()
         }).await;
         if r.is_err() {
@@ -110,7 +94,7 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
         let node = Arc::new(RwLock::new(r.ok().unwrap()));
 
         // Start node
-        async fn start_node (node: Arc<RwLock<p2p::node::Node<'_>>>) -> Result<(), Box<dyn std::error::Error>> {
+        async fn start_node (node: Arc<RwLock<p2p::node::Node>>) -> Result<(), Box<dyn std::error::Error>> {
             // Start node
             futures::join!(async {
                 match node.write().unwrap().start().await {
@@ -138,14 +122,14 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
             }
         }
         // Start server
-        async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, node: Arc<RwLock<p2p::node::Node<'_>>>, options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
-            server::core::start_server(proxy_sender, server::core::ServerOptions {
+        async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, state: Arc<RwLock<NodeState>>, options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
+            server::core::start_server(proxy_sender, state, server::core::ServerOptions {
                 port: options.port,
                 host: Some(options.host.to_string())
             }).await
         }
         let ps = Arc::new(RwLock::new(sender));
-        let _ = futures::join!(start_node(node.clone()), input(Arc::clone(&ps), options), start_server(Arc::clone(&ps), node.clone(), options));
+        let _ = futures::join!(start_node(Arc::clone(&node)), input(Arc::clone(&ps), options), start_server(Arc::clone(&ps), Arc::clone(&state), options));
     });
     Ok(())
 }
