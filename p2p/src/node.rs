@@ -13,8 +13,8 @@ use libp2p::{
     identity,
     NetworkBehaviour, Swarm, PeerId, Multiaddr,
 };
-use std::{error::Error};
-use crate::{message::{Message, MessageType}, lifecycle::NodeLifecycleHooks};
+use std::{error::Error, collections::{HashMap, HashSet}};
+use crate::{message::{Message, MessageType}, lifecycle::NodeLifecycleHooks, peer::Peer};
 use futures::channel::mpsc;
 
 pub type Sender<T> = mpsc::UnboundedSender<T>;
@@ -28,7 +28,8 @@ pub struct Node<'a> {
     swarm: Swarm<MyBehaviour>,
     floodsub_topic: floodsub::Topic,
     message_receiver: &'a mut Receiver<Message>,
-    hooks: Box<dyn NodeLifecycleHooks + Send + Sync>
+    hooks: Box<dyn NodeLifecycleHooks + Send + Sync>,
+    peers: HashMap<PeerId, Peer>
 }
 
 #[derive(Debug, Clone)]
@@ -39,6 +40,7 @@ pub struct NodeBehaviourOptions {
 // NodeBehaviour
 #[async_trait]
 pub trait NodeBehaviour {
+    fn peers(&self) -> Vec<Peer>;
     // Start listening
     async fn start(&mut self) -> Result<(), Box<dyn Error>>;
 }
@@ -99,7 +101,8 @@ impl<'a> Node<'a> {
             floodsub_topic,
             message_receiver: receiver,
             bootnode: opts.bootnode,
-            hooks
+            hooks,
+            peers: HashMap::new(),
         })
     }
 }
@@ -137,15 +140,19 @@ impl<'a> NodeBehaviour for Node<'a> {
                     Some(msg) => {
                         info!("You input message: {:?}, send to everyone", msg.message);
                         match msg.type_ {
-                            MessageType::TEXT => {
+                            MessageType::Text => {
                                 self.swarm.behaviour_mut()
                                     .floodsub
                                     .publish(self.floodsub_topic.clone(), msg.message.clone().as_bytes());
                             },
-                            MessageType::STOP => {
+                            MessageType::Stop => {
                                 warn!("Stopping p2p node...");
                                 stop_flag = true;
-                            }
+                            },
+                            MessageType::ListPeers => {
+                                info!("{:?}", self.peers());
+                            },
+                            // _ => warn!("Unknown message type: {:?}", msg.type_.to_string())
                         }
                     },
                     None => {
@@ -168,7 +175,20 @@ impl<'a> NodeBehaviour for Node<'a> {
                     SwarmEvent::Behaviour(OutEvent::Mdns(
                         MdnsEvent::Discovered(list)
                     )) => {
-                        for (peer, _) in list {
+                        for (peer, addr) in list {
+                            if !self.peers.contains_key(&peer) {
+                                self.peers.insert(peer, Peer {
+                                    id: peer,
+                                    hostname: "".to_string(),
+                                    host_mac: "".to_string(),
+                                    addrs: HashSet::new(),
+                                });
+                            }
+                            let mut p = self.peers.get(&peer).unwrap().clone();
+                            let mut addrs = p.addrs.clone();
+                            addrs.insert(addr.clone());
+                            p.addrs = addrs;
+                            self.peers.insert(p.id, p);
                             info!("Discovered {:?}", peer);
                             self.swarm
                                 .behaviour_mut()
@@ -198,5 +218,9 @@ impl<'a> NodeBehaviour for Node<'a> {
         info!("Stopped");
         self.hooks.on_stopped();
         Ok(())
+    }
+
+    fn peers(&self) -> Vec<Peer> {
+        self.peers.clone().into_values().collect()
     }
 }

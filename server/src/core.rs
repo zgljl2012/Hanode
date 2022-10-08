@@ -1,12 +1,12 @@
 use std::{error::Error, sync::{Mutex, RwLock, Arc}};
 use actix_web::{get, web::{self, Data}, App, HttpServer, Responder};
-use p2p::message::Message;
+use p2p::{message::Message};
 use p2p::node::Sender;
 use futures::SinkExt;
 
 struct AppState {
     counter: Mutex<i32>,
-    proxy_sender: Arc<RwLock<Sender<Message>>>
+    proxy_sender: Arc<RwLock<Sender<Message>>>,
 }
 
 #[get("/hello/{name}")]
@@ -30,10 +30,16 @@ async fn stop_p2p_node(state: Data<AppState>) -> impl Responder {
     format!("stop")
 }
 
+#[get("/peers")]
+async fn peers(state: Data<AppState>) -> impl Responder {
+    let _ = (*state.proxy_sender.write().unwrap()).send(Message::list_peers_message()).await;
+    format!("peers")
+}
+
 #[derive(Debug, Clone)]
 pub struct ServerOptions {
     pub host: Option<String>,
-    pub port: u16,
+    pub port: u16
 }
 
 pub async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, opts: ServerOptions) -> Result<(), Box<dyn Error>> {
@@ -51,6 +57,7 @@ pub async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, opts: Serv
             .app_data(state.clone())
             .service(greet)
             .service(stop_p2p_node)
+            .service(peers)
     })
     .bind((host, port))?
     .run()
