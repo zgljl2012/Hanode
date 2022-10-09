@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use async_std::{task};
-use log::{warn, info, error};
+use log::{warn, info, error, debug};
 use futures::{
     prelude::{stream::StreamExt},
     select,
@@ -9,11 +9,12 @@ use libp2p::{
     core,
     floodsub::{self, Floodsub, FloodsubEvent},
     mdns::{Mdns, MdnsConfig, MdnsEvent},
+    ping::{Ping, PingConfig, self},
     swarm::SwarmEvent,
     identity,
     NetworkBehaviour, Swarm, PeerId, Multiaddr,
 };
-use std::{error::Error};
+use std::{error::Error, time::Duration};
 use crate::{message::{Message, MessageType}, lifecycle::NodeLifecycleHooks};
 use futures::channel::mpsc;
 
@@ -50,6 +51,7 @@ pub trait NodeBehaviour {
 struct MyBehaviour {
     floodsub: Floodsub,
     mdns: Mdns,
+    ping: ping::Behaviour,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -57,6 +59,7 @@ struct MyBehaviour {
 enum OutEvent {
     Floodsub(FloodsubEvent),
     Mdns(MdnsEvent),
+    Ping(ping::Event),
 }
 
 impl From<MdnsEvent> for OutEvent {
@@ -68,6 +71,12 @@ impl From<MdnsEvent> for OutEvent {
 impl From<FloodsubEvent> for OutEvent {
     fn from(v: FloodsubEvent) -> Self {
         Self::Floodsub(v)
+    }
+}
+
+impl From<ping::Event> for OutEvent {
+    fn from(v: ping::Event) -> Self {
+        Self::Ping(v)
     }
 }
 
@@ -88,6 +97,7 @@ impl Node {
             let mut behaviour = MyBehaviour {
                 floodsub: Floodsub::new(local_peer_id),
                 mdns,
+                ping: Ping::new(PingConfig::new().with_interval(Duration::from_secs(5)).with_keep_alive(true)),
             };
             behaviour.floodsub.subscribe(floodsub_topic.clone());
             Swarm::new(transport, behaviour, local_peer_id)
@@ -165,6 +175,11 @@ impl NodeBehaviour for Node {
                             String::from_utf8_lossy(&message.data),
                             message.source
                         );
+                    }
+                    SwarmEvent::Behaviour(OutEvent::Ping(
+                        event
+                    )) => {
+                        debug!("Received ping from {:?}", event.peer.to_base58());
                     }
                     SwarmEvent::Behaviour(OutEvent::Mdns(
                         MdnsEvent::Discovered(list)

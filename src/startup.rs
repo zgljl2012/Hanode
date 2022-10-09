@@ -180,7 +180,6 @@ pub async fn list_peers(opts: ServerOptions) -> Result<(), Box<dyn std::error::E
                 error!("Error: {}", err);
             }
         }
-
     });
     Ok(())
 }
