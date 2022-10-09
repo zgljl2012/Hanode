@@ -1,6 +1,6 @@
 use std::{error::{Error}, sync::{Mutex, RwLock, Arc}};
 use actix_web::{get, web::{self, Data}, App, HttpServer, Responder,};
-use log::{debug};
+use log::{debug, info};
 use p2p::{message::Message, state::NodeState};
 use p2p::node::Sender;
 use futures::SinkExt;
@@ -56,6 +56,7 @@ pub async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, state: Arc
         proxy_sender,
         state
     });
+    info!("Server listening on {}:{}", host, port);
     HttpServer::new(move || {
         App::new()
             .app_data(state.clone())

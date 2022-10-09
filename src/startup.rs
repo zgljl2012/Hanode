@@ -24,11 +24,15 @@ use futures::executor::block_on;
 
 use crate::utils;
 
-pub struct StartOptions {
+pub struct ServerOptions{
+    pub host: String,
     pub port: u16,
+}
+
+pub struct StartOptions {
+    pub server_opts: ServerOptions,
     pub daemon: bool,
     pub pid: String,
-    pub host: String,
     pub bootnode: Option<String>
 }
 
@@ -125,12 +129,12 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
         async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, state: Arc<RwLock<NodeState>>, options: &StartOptions) {
             debug!("starting server...");
             match server::core::start_server(proxy_sender, state, server::core::ServerOptions {
-                port: options.port,
-                host: Some(options.host.to_string())
+                port: options.server_opts.port,
+                host: Some(options.server_opts.host.to_string())
             }).await {
                 Ok(_) => debug!("Start server success"),
                 Err(err) => { 
-                    error!("Start server on {}:{} failed: {}", options.host, options.port, err);
+                    error!("Start server on {}:{} failed: {}", options.server_opts.host, options.server_opts.port, err);
                     process::exit(1);
                 }
             }
@@ -139,12 +143,6 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
         let _ = futures::join!(start_node(Arc::clone(&node)), input(Arc::clone(&ps), options), start_server(Arc::clone(&ps), Arc::clone(&state), options));
     });
     Ok(())
-}
-
-
-pub struct ServerOptions{
-    pub host: String,
-    pub port: u16,
 }
 
 pub async fn stop(opts: ServerOptions) -> Result<(), Box<dyn std::error::Error>> {
