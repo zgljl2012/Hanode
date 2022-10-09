@@ -8,18 +8,19 @@ use p2p::message;
 use signal_hook::consts::SIGINT;
 use std::io::Error;
 use std::fs::{File};
+use std::path::Path;
 use std::sync::{Arc, RwLock};
 use std::{thread, process};
 use signal_hook::{iterator::Signals};
 use std::io::ErrorKind;
 use async_std::{io};
+use sysinfo::{ProcessExt, System, SystemExt, Pid};
 use futures::{
     prelude::{stream::StreamExt, *},
     select,
 };
 use futures::channel::mpsc;
 use daemonize::Daemonize;
-
 use futures::executor::block_on;
 
 use crate::utils;
@@ -29,31 +30,45 @@ pub struct ServerOptions{
     pub port: u16,
 }
 
-pub struct StartOptions {
-    pub server_opts: ServerOptions,
+pub struct DaemonOptions {
     pub daemon: bool,
     pub pid: String,
+    pub err_file: String,
+    pub log_file: String,
+}
+
+pub struct StartOptions {
+    pub server_opts: ServerOptions,
+    pub daemon_opts: DaemonOptions,
     pub bootnode: Option<String>
 }
 
 pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
-    if options.daemon {
-        if utils::exists(&options.pid) {
-            let err = Error::new(
-                ErrorKind::Other,
-                format!("pid file already exists: {}", &options.pid)
-            );
-            return Err(Box::new(err));
+    if options.daemon_opts.daemon {
+        if utils::exists(&options.daemon_opts.pid) {
+            // Read pid file
+            let pid = utils::read_pid(&options.daemon_opts.pid);
+            if let Some(pid) = pid {
+                debug!("Daemon already running with pid {}", pid);
+                let s = System::new_all();
+                if let Some(process) = s.process(Pid::from(pid)) {
+                    let err = Error::new(
+                        ErrorKind::Other,
+                        format!("There is a {} running, pid file already exists: {}", process.name(), &options.daemon_opts.pid)
+                    );
+                    return Err(Box::new(err));
+                }
+            }
         }
-        let stdout = File::create("./daemon.out").unwrap();
-        let stderr = File::create("./daemon.err").unwrap();
+        let stdout = File::create(Path::new(&options.daemon_opts.log_file)).unwrap();
+        let stderr = File::create(Path::new(&options.daemon_opts.err_file)).unwrap();
 
         let daemonize = Daemonize::new()
-            .pid_file(options.pid.clone()) // Every method except `new` and `start`
+            .pid_file(options.daemon_opts.pid.clone()) // Every method except `new` and `start`
             .stdout(stdout)  // Redirect stdout to `/tmp/daemon.out`.
             .stderr(stderr)  // Redirect stderr to `/tmp/daemon.err`.
             .exit_action(|| {
-                println!("Executed before master process exits");
+                debug!("Executed before master process exits");
             })
             .privileged_action(|| "Executed before drop privileges");
 
@@ -111,7 +126,7 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
         // Input message
         async fn input(sender: Arc<RwLock<Sender<Message>>>, options: &StartOptions) -> Result<(), Box<dyn std::error::Error>>  {
             // If running in the background, return immediately
-            if options.daemon {
+            if options.daemon_opts.daemon {
                 return Ok(());
             }
             // Read full lines from stdin

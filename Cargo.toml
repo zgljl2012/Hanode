@@ -18,3 +18,5 @@ server = {version = "0.0.1", path="server"}
 signal-hook = {version = "0.3.14"}
 log = {version = "0.4.17"}
 reqwest = "0.11.12"
+dirs = "4.0.0"
+sysinfo = "0.26.4"

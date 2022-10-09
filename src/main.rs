@@ -1,15 +1,15 @@
 
-use std::error::Error;
-
+use std::{error::Error, path::Path, fs};
 use clap::{arg, Command, ArgMatches};
+use dirs::home_dir;
 use env_logger::{Builder, Target};
 use log::{error, debug};
 mod startup;
 mod utils;
 
 fn cli() -> Command {
-    let port_arg = arg!(-p - -port <PORT> "Specify a port to connect to").value_parser(clap::value_parser!(u16).range(3000..)).required(false);
-    let host_arg = arg!(-H - -host <HOST> "Specify a host to connect to").required(false);
+    let port_arg = arg!(-p - -port <PORT> "Specify a port to listen or connect to").value_parser(clap::value_parser!(u16).range(3000..)).required(false);
+    let host_arg = arg!(-H - -host <HOST> "Specify a host to listen or connect to").required(false);
     Command::new("hanode")
         .about("A server for manage node")
         .subcommand_required(true)
@@ -18,6 +18,7 @@ fn cli() -> Command {
             Command::new("start")
                .about("Start a node")
                .arg(arg!(-d - -daemon "Running in daemon mode"))
+               .arg(arg!(--data_dir <DATA_DIR> "Data directory, default is $USER_HOME/.hanode").required(false))
                .arg(arg!(--bootnode <BOOTNODE> "Specify a boot node to connect").required(false))
                .arg(&port_arg)
                .arg(&host_arg)
@@ -61,6 +62,32 @@ fn get_server_opts(sub_matches: &ArgMatches) -> startup::ServerOptions {
     }
 }
 
+fn get_daemon_options(sub_matches: &ArgMatches) -> startup::DaemonOptions {
+    let daemon = sub_matches.get_flag("daemon");
+    let data_dir = match sub_matches.get_one::<String>("data_dir") {
+        Some(dir) => dir.clone(),
+        None => match home_dir() {
+            Some(dir) => format!("{}/{}", String::from(dir.clone().to_str().unwrap()), ".hanode"),
+            None => ".hanode".to_string()
+        },
+    };
+    // Check if the directory exists
+    let data_dir_path = Path::new(&data_dir);
+    if !data_dir_path.exists() {
+        // Create a new directory
+        fs::create_dir_all(&data_dir).unwrap();
+    }
+    let pid_path = data_dir_path.join("pid");
+    let err_path = data_dir_path.join("error.log");
+    let info_path = data_dir_path.join("info.log");
+    startup::DaemonOptions {
+        daemon,
+        pid: String::from(pid_path.to_str().unwrap()),
+        err_file: String::from(err_path.to_str().unwrap()),
+        log_file: String::from(info_path.to_str().unwrap()),
+    }
+}
+
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     Builder::new()
@@ -71,13 +98,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let matches = cli().get_matches();
     match matches.subcommand() {
         Some(("start", sub_matches)) => {
-            let daemon = sub_matches.get_flag("daemon");
             let bootnode = sub_matches.get_one::<String>("bootnode");
-            let server_opts = get_server_opts(&sub_matches);
             startup::start(&startup::StartOptions{
-                server_opts: server_opts,
-                daemon,
-                pid: "./hanode.pid".to_string(),
+                server_opts: get_server_opts(&sub_matches),
+                daemon_opts: get_daemon_options(&sub_matches),
                 bootnode: bootnode.map(|bootnode| bootnode.to_string()),
             }).await?;
         },
