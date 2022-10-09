@@ -13,8 +13,8 @@ use libp2p::{
     identity,
     NetworkBehaviour, Swarm, PeerId, Multiaddr,
 };
-use std::{error::Error, collections::{HashMap, HashSet}};
-use crate::{message::{Message, MessageType}, lifecycle::NodeLifecycleHooks, peer::Peer};
+use std::{error::Error};
+use crate::{message::{Message, MessageType}, lifecycle::NodeLifecycleHooks};
 use futures::channel::mpsc;
 
 pub type Sender<T> = mpsc::UnboundedSender<T>;
@@ -29,7 +29,6 @@ pub struct Node {
     floodsub_topic: floodsub::Topic,
     message_receiver:Box<Receiver<Message>>,
     hooks: Box<dyn NodeLifecycleHooks + Send + Sync>,
-    peers: HashMap<PeerId, Peer>
 }
 
 #[derive(Debug, Clone)]
@@ -40,7 +39,6 @@ pub struct NodeBehaviourOptions {
 // NodeBehaviour
 #[async_trait]
 pub trait NodeBehaviour {
-    fn peers(&self) -> Vec<Peer>;
     // Start listening
     async fn start(&mut self) -> Result<(), Box<dyn Error>>;
 }
@@ -102,7 +100,6 @@ impl Node {
             message_receiver: receiver,
             bootnode: opts.bootnode,
             hooks,
-            peers: HashMap::new(),
         })
     }
 }
@@ -149,9 +146,6 @@ impl NodeBehaviour for Node {
                                 warn!("Stopping p2p node...");
                                 stop_flag = true;
                             },
-                            MessageType::ListPeers => {
-                                info!("{:?}", self.peers());
-                            },
                             // _ => warn!("Unknown message type: {:?}", msg.type_.to_string())
                         }
                     },
@@ -177,19 +171,6 @@ impl NodeBehaviour for Node {
                     )) => {
                         for (peer, addr) in list {
                             self.hooks.on_peer_connection(peer, addr.clone());
-                            if !self.peers.contains_key(&peer) {
-                                self.peers.insert(peer, Peer {
-                                    id: peer,
-                                    hostname: "".to_string(),
-                                    host_mac: "".to_string(),
-                                    addrs: HashSet::new(),
-                                });
-                            }
-                            let mut p = self.peers.get(&peer).unwrap().clone();
-                            let mut addrs = p.addrs.clone();
-                            addrs.insert(addr.clone());
-                            p.addrs = addrs;
-                            self.peers.insert(p.id, p);
                             info!("Discovered {:?}", peer);
                             self.swarm
                                 .behaviour_mut()
@@ -219,9 +200,5 @@ impl NodeBehaviour for Node {
         info!("Stopped");
         self.hooks.on_stopped();
         Ok(())
-    }
-
-    fn peers(&self) -> Vec<Peer> {
-        self.peers.clone().into_values().collect()
     }
 }

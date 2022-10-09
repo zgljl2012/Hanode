@@ -8,15 +8,14 @@ struct AppState {
     counter: Mutex<i32>,
     proxy_sender: Arc<RwLock<Sender<Message>>>,
     state: Arc<RwLock<NodeState>>
-    // node: Arc<RwLock<p2p::node::Node>>
 }
 
-#[get("/hello/{name}")]
-async fn greet(state: Data<AppState>, name: web::Path<String>) -> impl Responder {
+#[get("/boardcast/{message}")]
+async fn boardcast(state: Data<AppState>, message: web::Path<String>) -> impl Responder {
     let mut counter = state.counter.lock().unwrap(); // <- get counter's MutexGuard
     *counter += 1; // <- access counter inside MutexGuard
-    let _ = (*state.proxy_sender.write().unwrap()).send(Message::from(name.to_string())).await;
-    format!("Hello {name} {counter}!")
+    let _ = (*state.proxy_sender.write().unwrap()).send(Message::from(message.to_string())).await;
+    format!("Hello {message} {counter}!")
 }
 
 #[get("/stop")]
@@ -34,7 +33,6 @@ async fn stop_p2p_node(state: Data<AppState>) -> impl Responder {
 
 #[get("/peers")]
 async fn peers(state: Data<AppState>) -> impl Responder {
-    // let _ = (*state.proxy_sender.write().unwrap()).send(Message::list_peers_message()).await;
     let peers = state.state.read().unwrap().peers.clone();
     println!("{:?}", peers);
     format!("peers")
@@ -56,12 +54,11 @@ pub async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, state: Arc
         counter: Mutex::new(0),
         proxy_sender,
         state
-        // node
     });
     HttpServer::new(move || {
         App::new()
             .app_data(state.clone())
-            .service(greet)
+            .service(boardcast)
             .service(stop_p2p_node)
             .service(peers)
     })
