@@ -34,18 +34,19 @@ impl NodeLifecycleHooks for NodeLifecycle {
     }
     fn on_peer_connection(&mut self, peer_id: PeerId, addr: Multiaddr) {
         debug!("NodeLifecycleHooks on_peer_connection({:?})", peer_id);
-        if !(*self.state.read().unwrap()).peers.contains_key(&peer_id) {
-            (*self.state.write().unwrap()).peers.insert(peer_id, Peer {
-                id: peer_id,
+        let peer_id_ = peer_id.to_base58();
+        if !(*self.state.read().unwrap()).peers.contains_key(&peer_id_) {
+            (*self.state.write().unwrap()).peers.insert(peer_id_.clone(), Peer {
+                id: peer_id_.clone(),
                 hostname: "".to_string(),
                 host_mac: "".to_string(),
                 addrs: HashSet::new(),
             });
         }
-        let mut p = (*self.state.read().unwrap()).peers.get(&peer_id).unwrap().clone();
+        let mut p = (*self.state.read().unwrap()).peers.get(&peer_id_).unwrap().clone();
         let mut addrs = p.addrs.clone();
         addrs.insert(addr.clone());
         p.addrs = addrs;
-        (*self.state.write().unwrap()).peers.insert(p.id, p);
+        (*self.state.write().unwrap()).peers.insert(peer_id_, p);
     }
 }

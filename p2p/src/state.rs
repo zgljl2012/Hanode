@@ -1,11 +1,11 @@
 use std::collections::HashMap;
-use libp2p::PeerId;
+use serde::{Deserialize, Serialize};
 use crate::peer::Peer;
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeState {
-    pub peers: HashMap<PeerId, Peer>
+    pub peers: HashMap<String, Peer>
 }
 
 impl NodeState {

@@ -135,17 +135,52 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
 }
 
 
-pub struct StopOptions{
+pub struct ServerOptions{
     pub host: String,
     pub port: u16,
 }
 
-pub async fn stop(opts: StopOptions) -> Result<(), Box<dyn std::error::Error>>  {
+pub async fn stop(opts: ServerOptions) -> Result<(), Box<dyn std::error::Error>> {
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on( async {
         let request_url = format!("http://{}:{}/stop", opts.host, opts.port);
         debug!("Send stop command to the node: {}", request_url);
         let _ = reqwest::get(&request_url).await;
+    });
+    Ok(())
+}
+
+pub struct BoardcastOptions {
+    pub server_opts: ServerOptions,
+    pub msg: String,
+}
+
+pub async fn boardcast(opts: BoardcastOptions) -> Result<(), Box<dyn std::error::Error>> {
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(async {
+        let request_url = format!("http://{}:{}/boardcast/{}", opts.server_opts.host, opts.server_opts.port, opts.msg.as_str());
+        debug!("Send boardcast command to the node: {}", request_url);
+        let _ = reqwest::get(&request_url).await;
+    });
+    Ok(())
+}
+
+pub async fn list_peers(opts: ServerOptions) -> Result<(), Box<dyn std::error::Error>> {
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(async {
+        let request_url = format!("http://{}:{}/peers", opts.host, opts.port);
+        debug!("Send list peers command to the node: {}", request_url);
+        let r = reqwest::get(&request_url).await;
+        match r {
+            Ok(r) => {
+                let data = r.text().await.unwrap();
+                println!("{}", data);
+            },
+            Err(err) => {
+                error!("Error: {}", err);
+            }
+        }
+
     });
     Ok(())
 }

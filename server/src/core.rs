@@ -1,5 +1,6 @@
-use std::{error::Error, sync::{Mutex, RwLock, Arc}};
-use actix_web::{get, web::{self, Data}, App, HttpServer, Responder};
+use std::{error::{Error}, sync::{Mutex, RwLock, Arc}};
+use actix_web::{get, web::{self, Data}, App, HttpServer, Responder,};
+use log::{debug};
 use p2p::{message::Message, state::NodeState};
 use p2p::node::Sender;
 use futures::SinkExt;
@@ -32,10 +33,10 @@ async fn stop_p2p_node(state: Data<AppState>) -> impl Responder {
 }
 
 #[get("/peers")]
-async fn peers(state: Data<AppState>) -> impl Responder {
+async fn peers(state: Data<AppState>) -> Result<impl Responder, Box<dyn Error>> {
     let peers = state.state.read().unwrap().peers.clone();
-    println!("{:?}", peers);
-    format!("peers")
+    debug!("{:?}", peers);
+    Ok(web::Json(peers))
 }
 
 #[derive(Debug, Clone)]

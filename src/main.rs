@@ -1,7 +1,7 @@
 
 use std::error::Error;
 
-use clap::{arg, Command};
+use clap::{arg, Command, ArgMatches};
 use env_logger::{Builder, Target};
 use log::{error, debug};
 mod startup;
@@ -24,6 +24,37 @@ fn cli() -> Command {
                .arg(arg!(-p - -port <PORT> "Specify a port to connect to").value_parser(clap::value_parser!(u16).range(3000..)).required(false))
                .arg(arg!(-H - -host <HOST> "Specify a host to connect to").required(false))
         )
+        .subcommand(
+            Command::new("peers")
+               .about("List all peers")
+               .arg(arg!(-p - -port <PORT> "Specify a port to connect to").value_parser(clap::value_parser!(u16).range(3000..)).required(false))
+               .arg(arg!(-H - -host <HOST> "Specify a host to connect to").required(false))
+        )
+        .subcommand(
+            Command::new("boardcast")
+               .about("Stop a node")
+               .arg(arg!(-p - -port <PORT> "Specify a port to connect to").value_parser(clap::value_parser!(u16).range(3000..)).required(false))
+               .arg(arg!(-H - -host <HOST> "Specify a host to connect to").required(false))
+               .arg(arg!(<MESSAGE> "Specify a message to boardcast"))
+        )
+
+}
+
+fn get_server_opts(sub_matches: &ArgMatches) -> startup::ServerOptions {
+    let port = sub_matches.get_one::<u16>("port");
+    let p: u16 = match port {
+        Some(port) => port.clone(),
+        None => 8080,
+    };
+    let host = sub_matches.get_one::<String>("host");
+    let h = match host {
+        Some(host) => host.clone(),
+        None => "127.0.0.1".to_string(),
+    };
+    startup::ServerOptions{
+        port: p,
+        host: h,
+    }
 }
 
 #[async_std::main]
@@ -47,19 +78,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }).await?;
         },
         Some(("stop", sub_matches)) => {
-            let port = sub_matches.get_one::<u16>("port");
-            let p: u16 = match port {
-                Some(port) => port.clone(),
-                None => 8080,
-            };
-            let host = sub_matches.get_one::<String>("host");
-            let h = match host {
+            startup::stop(get_server_opts(&sub_matches)).await?;
+        },
+        Some(("peers", sub_matches)) => {
+            startup::list_peers(get_server_opts(&sub_matches)).await?;
+        },
+        Some(("boardcast", sub_matches)) => {
+            let message = sub_matches.get_one::<String>("MESSAGE");
+            let m = match message {
                 Some(host) => host.clone(),
-                None => "127.0.0.1".to_string(),
+                None => "".to_string(),
             };
-            startup::stop(startup::StopOptions{
-                port: p,
-                host: h,
+            startup::boardcast(startup::BoardcastOptions{
+                server_opts: get_server_opts(&sub_matches),
+                msg: m,
             }).await?;
         },
         _ => error!("not implemented"),

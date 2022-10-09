@@ -2476,6 +2476,8 @@ dependencies = [
  "futures",
  "libp2p",
  "log",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3140,8 +3142,11 @@ version = "0.0.1"
 dependencies = [
  "actix-web",
  "async-std",
+ "env_logger",
  "futures",
+ "log",
  "p2p",
+ "serde_json",
  "tokio",
 ]
 
