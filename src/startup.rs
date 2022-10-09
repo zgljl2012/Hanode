@@ -122,11 +122,18 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
             }
         }
         // Start server
-        async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, state: Arc<RwLock<NodeState>>, options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
-            server::core::start_server(proxy_sender, state, server::core::ServerOptions {
+        async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, state: Arc<RwLock<NodeState>>, options: &StartOptions) {
+            debug!("starting server...");
+            match server::core::start_server(proxy_sender, state, server::core::ServerOptions {
                 port: options.port,
                 host: Some(options.host.to_string())
-            }).await
+            }).await {
+                Ok(_) => debug!("Start server success"),
+                Err(err) => { 
+                    error!("Start server on {}:{} failed: {}", options.host, options.port, err);
+                    process::exit(1);
+                }
+            }
         }
         let ps = Arc::new(RwLock::new(sender));
         let _ = futures::join!(start_node(Arc::clone(&node)), input(Arc::clone(&ps), options), start_server(Arc::clone(&ps), Arc::clone(&state), options));

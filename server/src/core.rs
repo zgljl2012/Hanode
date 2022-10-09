@@ -45,7 +45,7 @@ pub struct ServerOptions {
     pub port: u16
 }
 
-pub async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, state: Arc<RwLock<NodeState>>, opts: ServerOptions) -> Result<(), Box<dyn Error>> {
+pub async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, state: Arc<RwLock<NodeState>>, opts: ServerOptions) -> Result<(), std::io::Error> {
     let host = match opts.host {
         Some(host) => host,
         None => "127.0.0.1".to_string(),
@@ -65,6 +65,5 @@ pub async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, state: Arc
     })
     .bind((host, port))?
     .run()
-    .await?;
-    Ok(())
+    .await
 }
