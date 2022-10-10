@@ -10,9 +10,10 @@ target
 **/*.rs.bk
 
 
-#Added by cargo
+# Added by cargo
 
-/target
+# tempfile
 *.pid
 *.out
 *.err
+*.sock

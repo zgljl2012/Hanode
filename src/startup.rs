@@ -28,6 +28,8 @@ use crate::utils;
 pub struct ServerOptions{
     pub host: String,
     pub port: u16,
+    // Unix domain socket path
+    pub uds_path: Option<String>
 }
 
 pub struct DaemonOptions {

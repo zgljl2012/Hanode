@@ -2887,6 +2887,7 @@ dependencies = [
  "async-std",
  "env_logger",
  "futures",
+ "futures-util",
  "log",
  "p2p",
  "serde_json",

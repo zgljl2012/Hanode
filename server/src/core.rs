@@ -1,9 +1,10 @@
 use std::{error::{Error}, sync::{Mutex, RwLock, Arc}};
-use actix_web::{get, web::{self, Data}, App, HttpServer, Responder,};
+use actix_web::{get, web::{self, Data}, App, HttpServer, Responder, dev::Service as _,};
 use log::{debug, info};
 use p2p::{message::Message, state::NodeState};
 use p2p::node::Sender;
 use futures::SinkExt;
+use futures_util::future::FutureExt;
 
 struct AppState {
     counter: Mutex<i32>,
@@ -45,6 +46,9 @@ pub struct ServerOptions {
     pub port: u16
 }
 
+/**
+ * UDS client example: curl -v --unix-socket hanode.sock http://localhost/peers
+ */
 pub async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, state: Arc<RwLock<NodeState>>, opts: ServerOptions) -> Result<(), std::io::Error> {
     let host = match opts.host {
         Some(host) => host,
@@ -58,13 +62,20 @@ pub async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, state: Arc
     });
     info!("Server listening on {}:{}", host, port);
     HttpServer::new(move || {
-        App::new()
+        App::new().
+            wrap_fn(|req, srv| {
+                // This is a middleware that for output request_url
+                srv.call(req).map(|res| {
+                    res
+                })
+            })
             .app_data(state.clone())
             .service(boardcast)
             .service(stop_p2p_node)
             .service(peers)
     })
     .bind((host, port))?
+    .bind_uds("hanode.sock")?
     .run()
     .await
 }

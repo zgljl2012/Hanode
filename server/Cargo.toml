@@ -14,3 +14,4 @@ p2p = {version = "0.0.1", path="../p2p"}
 serde_json = "1.0.85"
 env_logger = "0.9.1"
 log = "0.4.17"
+futures-util = "0.3.24"

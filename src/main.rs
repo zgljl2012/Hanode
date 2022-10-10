@@ -59,6 +59,7 @@ fn get_server_opts(sub_matches: &ArgMatches) -> startup::ServerOptions {
     startup::ServerOptions{
         port: p,
         host: h,
+        uds_path: None
     }
 }
 
@@ -77,7 +78,7 @@ fn get_daemon_options(sub_matches: &ArgMatches) -> startup::DaemonOptions {
         // Create a new directory
         fs::create_dir_all(&data_dir).unwrap();
     }
-    let pid_path = data_dir_path.join("pid");
+    let pid_path = data_dir_path.join("hanode.pid");
     let err_path = data_dir_path.join("error.log");
     let info_path = data_dir_path.join("info.log");
     startup::DaemonOptions {
