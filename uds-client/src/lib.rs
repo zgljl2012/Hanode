@@ -29,6 +29,20 @@ pub async fn get(opts: &UdsClientOptions) -> Result<String, Box<dyn std::error::
         buf_size = buf.len();
     }
     if let Ok(r) = std::str::from_utf8(&buf[..]) {
+        let mut headers = [httparse::EMPTY_HEADER; 16];
+        let mut response = httparse::Response::new(&mut headers);
+        let res = response.parse(r.as_bytes());
+        if res.is_err() {
+            return Err(format!("Failed to parse response: {:?}", res).into());
+        }
+        let status = response.code;
+        if status != Some(200) {
+            return Err(format!("Invalid status code: {:?}", status).into());
+        }
+        // parse body
+        let body_offset = res.unwrap().unwrap();
+        let body = std::str::from_utf8(&r.as_bytes()[body_offset..]);
+        println!("---->>>>> {:?} {} {}", response.version, response.headers.len(), body.unwrap());
         return Ok(String::from(r));
     }
     let err = std::io::Error::new(
