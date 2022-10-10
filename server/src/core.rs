@@ -42,8 +42,10 @@ async fn peers(state: Data<AppState>) -> Result<impl Responder, Box<dyn Error>> 
 
 #[derive(Debug, Clone)]
 pub struct ServerOptions {
+    pub server: bool, // true if the open server
     pub host: Option<String>,
-    pub port: u16
+    pub port: u16,
+    pub sock_file: String
 }
 
 /**
@@ -60,8 +62,7 @@ pub async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, state: Arc
         proxy_sender,
         state
     });
-    info!("Server listening on {}:{}", host, port);
-    HttpServer::new(move || {
+    let server = HttpServer::new(move || {
         App::new().
             wrap_fn(|req, srv| {
                 // This is a middleware that for output request_url
@@ -74,8 +75,11 @@ pub async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, state: Arc
             .service(stop_p2p_node)
             .service(peers)
     })
-    .bind((host, port))?
-    .bind_uds("hanode.sock")?
-    .run()
-    .await
+    .bind_uds(opts.sock_file)?;
+    if opts.server {
+        info!("Server listening on {}:{}", host, port);
+        server.bind((host, port))?.run().await
+    } else {
+        server.run().await
+    }
 }

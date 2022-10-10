@@ -26,10 +26,11 @@ use futures::executor::block_on;
 use crate::utils;
 
 pub struct ServerOptions{
+    pub server: bool,
     pub host: String,
     pub port: u16,
     // Unix domain socket path
-    pub uds_path: Option<String>
+    pub uds_path: String
 }
 
 pub struct DaemonOptions {
@@ -147,7 +148,9 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
             debug!("starting server...");
             match server::core::start_server(proxy_sender, state, server::core::ServerOptions {
                 port: options.server_opts.port,
-                host: Some(options.server_opts.host.to_string())
+                host: Some(options.server_opts.host.to_string()),
+                server: options.server_opts.server,
+                sock_file: options.server_opts.uds_path.clone(),
             }).await {
                 Ok(_) => debug!("Start server success"),
                 Err(err) => { 
@@ -165,9 +168,17 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
 pub async fn stop(opts: ServerOptions) -> Result<(), Box<dyn std::error::Error>> {
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on( async {
-        let request_url = format!("http://{}:{}/stop", opts.host, opts.port);
-        debug!("Send stop command to the node: {}", request_url);
-        let _ = reqwest::get(&request_url).await;
+        if opts.server {
+            let request_url = format!("http://{}:{}/stop", opts.host, opts.port);
+            debug!("Send stop command to the node: {}", request_url);
+            reqwest::get(&request_url).await.unwrap();
+        } else {
+            // By unix domain sockets
+            uds_client::get(&uds_client::UdsClientOptions{
+                uds_sock_path: opts.uds_path.clone(),
+                url_path: "/stop".to_string(),
+             }).await.unwrap();
+        }
     });
     Ok(())
 }
@@ -180,9 +191,17 @@ pub struct BoardcastOptions {
 pub async fn boardcast(opts: BoardcastOptions) -> Result<(), Box<dyn std::error::Error>> {
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
-        let request_url = format!("http://{}:{}/boardcast/{}", opts.server_opts.host, opts.server_opts.port, opts.msg.as_str());
-        debug!("Send boardcast command to the node: {}", request_url);
-        let _ = reqwest::get(&request_url).await;
+        if opts.server_opts.server {
+            let request_url = format!("http://{}:{}/boardcast/{}", opts.server_opts.host, opts.server_opts.port, opts.msg.as_str());
+            debug!("Send boardcast command to the node: {}", request_url);
+            reqwest::get(&request_url).await.unwrap();
+        } else {
+            // By unix domain sockets
+            uds_client::get(&uds_client::UdsClientOptions{
+                uds_sock_path: opts.server_opts.uds_path.clone(),
+                url_path: format!("/boardcast/{}", opts.msg.as_str()),
+             }).await.unwrap();
+        }
     });
     Ok(())
 }
@@ -190,17 +209,27 @@ pub async fn boardcast(opts: BoardcastOptions) -> Result<(), Box<dyn std::error:
 pub async fn list_peers(opts: ServerOptions) -> Result<(), Box<dyn std::error::Error>> {
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
-        let request_url = format!("http://{}:{}/peers", opts.host, opts.port);
-        debug!("Send list peers command to the node: {}", request_url);
-        let r = reqwest::get(&request_url).await;
-        match r {
-            Ok(r) => {
-                let data = r.text().await.unwrap();
-                println!("{}", data);
-            },
-            Err(err) => {
-                error!("Error: {}", err);
+        if opts.server {
+            // By http
+            let request_url = format!("http://{}:{}/peers", opts.host, opts.port);
+            debug!("Send list peers command to the node: {}", request_url);
+            let r = reqwest::get(&request_url).await;
+            match r {
+                Ok(r) => {
+                    let data = r.text().await.unwrap();
+                    println!("{}", data);
+                },
+                Err(err) => {
+                    error!("Error: {}", err);
+                }
             }
+        } else {
+            // By unix domain sockets
+            let res = uds_client::get(&uds_client::UdsClientOptions{
+               uds_sock_path: opts.uds_path.clone(),
+               url_path: "/peers".to_string(),
+            }).await.unwrap();
+            println!("{}", res.body);
         }
     });
     Ok(())

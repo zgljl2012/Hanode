@@ -4,8 +4,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use bytes::BytesMut;
 
 pub struct UdsClientOptions {
-    pub uds_sock_path: &'static str,
-    pub url_path: &'static str,
+    pub uds_sock_path: String,
+    pub url_path: String,
 }
 
 #[derive(Debug, Clone)]
@@ -29,14 +29,13 @@ pub async fn get(opts: &UdsClientOptions) -> Result<Response, Box<dyn std::error
         \r\n", opts.url_path);
     client.write_all(message.as_bytes()).await.expect("Unable to write message to client");
 
-    let mut buf = BytesMut::with_capacity(256);
-    let mut buf_size = 0;
+    let chunk_size = 256;
+    let mut buf = BytesMut::with_capacity(chunk_size);
     loop {
-        client.read_buf(&mut buf).await.expect("Unable to read message from client");
-        if buf.len() == buf_size {
+        let n = client.read_buf(&mut buf).await.expect("Unable to read message from client");
+        if n == 0 || buf.len() < buf.capacity() {
             break;
         }
-        buf_size = buf.len();
     }
     if let Ok(r) = std::str::from_utf8(&buf[..]) {
         let mut headers = [httparse::EMPTY_HEADER; 16];
