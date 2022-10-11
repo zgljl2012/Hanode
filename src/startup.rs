@@ -167,59 +167,19 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
-pub async fn stop(opts: ServerOptions) -> Result<(), Box<dyn std::error::Error>> {
-    let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on( async {
-        if opts.server {
-            let request_url = format!("http://{}:{}/stop", opts.host, opts.port);
-            debug!("Send stop command to the node: {}", request_url);
-            reqwest::get(&request_url).await.unwrap();
-        } else {
-            // By unix domain sockets
-            uds_client::get(&uds_client::UdsClientOptions{
-                uds_sock_path: opts.uds_path.clone(),
-                url_path: "/stop".to_string(),
-             }).await.unwrap();
-        }
-    });
-    Ok(())
-}
-
-pub struct BoardcastOptions {
-    pub server_opts: ServerOptions,
-    pub msg: String,
-}
-
-pub async fn boardcast(opts: BoardcastOptions) -> Result<(), Box<dyn std::error::Error>> {
-    let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(async {
-        if opts.server_opts.server {
-            let request_url = format!("http://{}:{}/boardcast/{}", opts.server_opts.host, opts.server_opts.port, opts.msg.as_str());
-            debug!("Send boardcast command to the node: {}", request_url);
-            reqwest::get(&request_url).await.unwrap();
-        } else {
-            // By unix domain sockets
-            uds_client::get(&uds_client::UdsClientOptions{
-                uds_sock_path: opts.server_opts.uds_path.clone(),
-                url_path: format!("/boardcast/{}", opts.msg.as_str()),
-             }).await.unwrap();
-        }
-    });
-    Ok(())
-}
-
-pub async fn list_peers(opts: ServerOptions) -> Result<(), Box<dyn std::error::Error>> {
+async fn call_url(opts: &ServerOptions, url_path: &str, output: bool) -> Result<(), Box<dyn std::error::Error>> {
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
         if opts.server {
             // By http
-            let request_url = format!("http://{}:{}/peers", opts.host, opts.port);
-            debug!("Send list peers command to the node: {}", request_url);
+            let request_url = format!("http://{}:{}/{}", opts.host, opts.port, url_path);
             let r = reqwest::get(&request_url).await;
             match r {
                 Ok(r) => {
                     let data = r.text().await.unwrap();
-                    println!("{}", data);
+                    if output {
+                        println!("{}", data);
+                    }
                 },
                 Err(err) => {
                     error!("Error: {}", err);
@@ -229,10 +189,31 @@ pub async fn list_peers(opts: ServerOptions) -> Result<(), Box<dyn std::error::E
             // By unix domain sockets
             let res = uds_client::get(&uds_client::UdsClientOptions{
                uds_sock_path: opts.uds_path.clone(),
-               url_path: "/peers".to_string(),
+               url_path: url_path.to_string(),
             }).await.unwrap();
-            println!("{}", res.body);
+            if output {
+                println!("{}", res.body);
+            }
         }
     });
     Ok(())
+}
+
+pub async fn stop(opts: ServerOptions) -> Result<(), Box<dyn std::error::Error>> {
+    call_url(&opts, "/stop", true).await
+}
+
+pub struct BoardcastOptions {
+    pub server_opts: ServerOptions,
+    pub msg: String,
+}
+
+pub async fn boardcast(opts: BoardcastOptions) -> Result<(), Box<dyn std::error::Error>> {
+    let request_url = format!("/boardcast/{}", opts.msg.as_str());
+    debug!("Send boardcast command to the node: {}", request_url);
+    call_url(&opts.server_opts, request_url.as_str(), false).await
+}
+
+pub async fn list_peers(opts: ServerOptions) -> Result<(), Box<dyn std::error::Error>> {
+    call_url(&opts, "/peers", true).await
 }
