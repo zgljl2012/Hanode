@@ -43,7 +43,8 @@ pub struct DaemonOptions {
 pub struct StartOptions {
     pub server_opts: ServerOptions,
     pub daemon_opts: DaemonOptions,
-    pub bootnode: Option<String>
+    pub bootnode: Option<String>,
+    pub p2p_port: Option<u16>, // port for p2p connections
 }
 
 pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Error>> {
@@ -107,6 +108,7 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
         let lifecycle = NodeLifecycle::new(state.clone());
         // Create the node
         let r = p2p::node::Node::new(Box::new(receiver), lifecycle, NodeBehaviourOptions{
+            port: options.p2p_port,
             bootnode: options.bootnode.clone()
         }).await;
         if r.is_err() {

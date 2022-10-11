@@ -12,6 +12,7 @@ fn cli() -> Command {
     let host_arg = arg!(-H - -host <HOST> "Specify a host to listen or connect to").required(false);
     let uds_path_arg = arg!(--sock <SOCK_FILE> "Specify a socket file to connect to, default is $HOME/.hanode/hanode.sock").required(false);
     let data_dir_arg = arg!(--datadir <DATA_DIR> "Data directory, default is $USER_HOME/.hanode").required(false);
+    let p2p_port_arg = arg!(--"p2p-port" <P2P_PORT> "Specify a port for p2p connections").value_parser(clap::value_parser!(u16).range(3000..)).required(false);
     Command::new("hanode")
         .about("A server for manage node")
         .subcommand_required(true)
@@ -26,6 +27,7 @@ fn cli() -> Command {
                .arg(&port_arg)
                .arg(&host_arg)
                .arg(&uds_path_arg)
+               .arg(&p2p_port_arg)
         )
         .subcommand(
             Command::new("stop")
@@ -129,10 +131,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     match matches.subcommand() {
         Some(("start", sub_matches)) => {
             let bootnode = sub_matches.get_one::<String>("bootnode");
+            let p2p_port = match sub_matches.get_one::<u16>("p2p-port") {
+                Some(port) => Some(port.clone()),
+                None => None,
+            };
             startup::start(&startup::StartOptions{
                 server_opts: get_server_opts(&sub_matches),
                 daemon_opts: get_daemon_options(&sub_matches),
                 bootnode: bootnode.map(|bootnode| bootnode.to_string()),
+                p2p_port: p2p_port,
             }).await?;
         },
         Some(("stop", sub_matches)) => {

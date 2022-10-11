@@ -25,6 +25,7 @@ pub type Receiver<T> = mpsc::UnboundedReceiver<T>;
 pub struct Node {
     pub key: core::identity::Keypair,
     pub peer_id: PeerId,
+    port: Option<u16>,
     bootnode: Option<String>,
     swarm: Swarm<MyBehaviour>,
     floodsub_topic: floodsub::Topic,
@@ -34,6 +35,7 @@ pub struct Node {
 
 #[derive(Debug, Clone)]
 pub struct NodeBehaviourOptions {
+    pub port: Option<u16>,
     pub bootnode: Option<String>
 }
 
@@ -104,6 +106,7 @@ impl Node {
         };
         Ok(Node {
             swarm,
+            port: opts.port,
             key: local_key,
             peer_id: local_peer_id,
             floodsub_topic,
@@ -130,7 +133,11 @@ impl NodeBehaviour for Node {
         }
 
         // Listen on all interfaces and whatever port the OS assigns
-        match self.swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?) {
+        let port = match self.port {
+            Some(p) => p,
+            None => 0 as u16
+        };
+        match self.swarm.listen_on(format!("/ip4/0.0.0.0/tcp/{}", port).parse()?) {
             Ok(listener) => {
                 info!("Listening on {:?}", listener);
             },
