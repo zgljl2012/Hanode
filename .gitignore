@@ -18,3 +18,6 @@ target
 *.err
 *.sock
 data
+
+# vagrant
+.vagrant

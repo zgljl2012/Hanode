@@ -62,6 +62,7 @@ pub async fn start_server(proxy_sender: Arc<RwLock<Sender<Message>>>, state: Arc
         proxy_sender,
         state
     });
+    // IPC devops
     let server = HttpServer::new(move || {
         App::new().
             wrap_fn(|req, srv| {
