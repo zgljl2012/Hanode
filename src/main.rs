@@ -11,7 +11,7 @@ fn cli() -> Command {
     let port_arg = arg!(-p - -port <PORT> "Specify a port to listen or connect to").value_parser(clap::value_parser!(u16).range(3000..)).required(false);
     let host_arg = arg!(-H - -host <HOST> "Specify a host to listen or connect to").required(false);
     let uds_path_arg = arg!(--sock <SOCK_FILE> "Specify a socket file to connect to, default is $HOME/.hanode/hanode.sock").required(false);
-    let data_dir_arg = arg!(--data_dir <DATA_DIR> "Data directory, default is $USER_HOME/.hanode").required(false);
+    let data_dir_arg = arg!(--datadir <DATA_DIR> "Data directory, default is $USER_HOME/.hanode").required(false);
     Command::new("hanode")
         .about("A server for manage node")
         .subcommand_required(true)
@@ -56,7 +56,7 @@ fn cli() -> Command {
 }
 
 fn get_datadir(sub_matches: &ArgMatches) -> String {
-    let data_dir = match sub_matches.get_one::<String>("data_dir") {
+    let data_dir = match sub_matches.get_one::<String>("datadir") {
         Some(dir) => dir.clone(),
         None => match home_dir() {
             Some(dir) => format!("{}/{}", String::from(dir.clone().to_str().unwrap()), ".hanode"),
