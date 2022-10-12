@@ -3,7 +3,7 @@ use std::{collections::{HashSet}, process, sync::{Arc, RwLock}};
 use libp2p::{Multiaddr, PeerId};
 use log::debug;
 
-use crate::{peer::Peer, state::NodeState};
+use crate::{peer::{Peer, PeerStatus}, state::NodeState};
 
 
 pub trait NodeLifecycleHooks {
@@ -41,6 +41,7 @@ impl NodeLifecycleHooks for NodeLifecycle {
                 hostname: "".to_string(),
                 host_mac: "".to_string(),
                 addrs: HashSet::new(),
+                status: PeerStatus::Connected,
             });
         }
         let mut p = (*self.state.read().unwrap()).peers.get(&peer_id_).unwrap().clone();
