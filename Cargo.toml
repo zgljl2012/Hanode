@@ -25,3 +25,6 @@ actix-rt = "2.7.0"
 bytes = "1.2.1"
 futures-util = "0.3.24"
 uds-client = {version = "0.0.1", path = "uds-client"}
+sled = "0.34.7"
+strum = "0.24.1"
+strum_macros = "0.24.3"

@@ -140,6 +140,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 daemon_opts: get_daemon_options(&sub_matches),
                 bootnode: bootnode.map(|bootnode| bootnode.to_string()),
                 p2p_port: p2p_port,
+                db_dir: Some("data".to_string()),
             }).await?;
         },
         Some(("stop", sub_matches)) => {

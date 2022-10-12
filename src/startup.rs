@@ -22,7 +22,6 @@ use futures::{
 use futures::channel::mpsc;
 use daemonize::Daemonize;
 use futures::executor::block_on;
-
 use crate::utils;
 
 pub struct ServerOptions{
@@ -44,6 +43,7 @@ pub struct StartOptions {
     pub server_opts: ServerOptions,
     pub daemon_opts: DaemonOptions,
     pub bootnode: Option<String>,
+    pub db_dir: Option<String>,
     pub p2p_port: Option<u16>, // port for p2p connections
 }
 
@@ -106,13 +106,25 @@ pub async fn start(options: &StartOptions) -> Result<(), Box<dyn std::error::Err
         let state = Arc::new(RwLock::new(NodeState::new()));
         // Node lifecycle hooks
         let lifecycle = NodeLifecycle::new(state.clone());
+        // Create db
+        let db_dir = match options.db_dir.clone() {
+            Some(db_dir) => db_dir,
+            None => "data".to_string(),
+        };
+        let db_path = Path::new(db_dir.as_str()).join("hanode.db");
+        let db = match sled::open(&db_path) {
+            Ok(db) => db,
+            Err(e) => {
+                panic!("Failed to open database: {}", e);
+            }
+        };
         // Create the node
-        let r = p2p::node::Node::new(Box::new(receiver), lifecycle, NodeBehaviourOptions{
+        let r = p2p::node::Node::new(Box::new(receiver), lifecycle, db, NodeBehaviourOptions{
             port: options.p2p_port,
-            bootnode: options.bootnode.clone()
+            bootnode: options.bootnode.clone(),
         }).await;
         if r.is_err() {
-            error!("Failed to create node");
+            error!("Failed to create node: {}", r.err().unwrap());
             process::exit(1);
         }
         let node = Arc::new(RwLock::new(r.ok().unwrap()));

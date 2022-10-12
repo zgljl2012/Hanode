@@ -25,6 +25,7 @@ pub type Receiver<T> = mpsc::UnboundedReceiver<T>;
 pub struct Node {
     pub key: core::identity::Keypair,
     pub peer_id: PeerId,
+    db: sled::Db,
     port: Option<u16>,
     bootnode: Option<String>,
     swarm: Swarm<MyBehaviour>,
@@ -82,10 +83,25 @@ impl From<ping::Event> for OutEvent {
     }
 }
 
+
+#[derive(strum_macros::Display)]
+pub enum NodeStateKey {
+    NodeLocalKey,
+}
+
 impl Node {
-    pub async fn new(receiver: Box<Receiver<Message>>, hooks: Box<dyn NodeLifecycleHooks + Send + Sync>, opts: NodeBehaviourOptions) -> Result<Node, Box<dyn Error>> {
-        // Create a random PeerId
-        let local_key = identity::Keypair::generate_ed25519();
+    pub async fn new(receiver: Box<Receiver<Message>>, hooks: Box<dyn NodeLifecycleHooks + Send + Sync>, db: sled::Db, opts: NodeBehaviourOptions) -> Result<Node, Box<dyn Error>> {
+        // Create or load a random secret key
+        let mut secret = identity::secp256k1::SecretKey::generate();
+        // Check if exists local key in database
+        if let Some(k) = db.get(NodeStateKey::NodeLocalKey.to_string() as String)? {
+            secret = identity::secp256k1::SecretKey::from_bytes(k)?;
+            debug!("Found local key in database");
+        } else {
+            // Store the local key in database
+            db.insert(NodeStateKey::NodeLocalKey.to_string() as String, &secret.to_bytes())?;
+        }
+        let local_key = identity::Keypair::Secp256k1(identity::secp256k1::Keypair::from(secret));
         let local_peer_id = PeerId::from(local_key.public());
         // Set up an encrypted DNS-enabled TCP Transport over the Mplex and Yamux protocols
         let k2 = local_key.clone();
@@ -106,6 +122,7 @@ impl Node {
         };
         Ok(Node {
             swarm,
+            db: db,
             port: opts.port,
             key: local_key,
             peer_id: local_peer_id,
